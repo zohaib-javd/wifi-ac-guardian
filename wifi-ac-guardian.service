@@ -1,0 +1,18 @@
+[Unit]
+Description=WiFi AC Guardian Continuous PHY Mode Monitor
+Documentation=https://github.com/example/wifi-ac-guardian
+After=network.target NetworkManager.service
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/wifi-ac-guardian --daemon
+Restart=always
+RestartSec=5s
+Environment="PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="DISPLAY=:0"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

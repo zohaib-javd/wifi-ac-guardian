@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=WiFi AC Guardian
+Comment=Ensures continuous Wi-Fi 5 (802.11ac) or higher negotiation
+Exec=wifi-ac-guardian --daemon
+Icon=network-wireless
+Categories=Network;Monitor;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
