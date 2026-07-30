@@ -14,7 +14,7 @@
 
 | 🐧 Linux (Ubuntu GTK3 UI) | 🪟 Windows 11 (Tkinter / Fluent UI) |
 |:---:|:---:|
-| ![Linux Control Panel](docs/screenshots/linux_control_panel.jpg) | ![Windows 11 Control Panel](docs/screenshots/windows_control_panel.jpg) |
+| ![Linux Control Panel](docs/screenshots/linux_control_panel.png) | ![Windows 11 Control Panel](docs/screenshots/windows_control_panel.png) |
 
 ---
 
