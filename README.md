@@ -3,15 +3,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Windows-orange.svg)](https://ubuntu.com)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-zohaib--javd%2Fwifi--ac--guardian-181717?logo=github)](https://github.com/zohaib-javd/wifi-ac-guardian)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
 
 **WiFi AC Guardian** is an open-source, production-grade Linux & Windows desktop service designed to continuously monitor Wi-Fi physical layer (PHY) negotiation modes. If your connection falls back to **Wi-Fi 4 (802.11n / HT)** or another slower legacy mode, WiFi AC Guardian automatically disconnects and re-establishes the connection via NetworkManager / `netsh` until **Wi-Fi 5 (802.11ac / VHT)**, **Wi-Fi 6 (802.11ax / HE)**, or **Wi-Fi 7 (802.11be / EHT)** is active.
 
 ---
 
-## 🖼️ Desktop UI Screenshot
+## 🖼️ Graphical Interface Screenshots
 
-![WiFi AC Guardian GTK3 Control Panel](docs/screenshots/control_panel_ui.jpg)
+| 🐧 Linux (Ubuntu GTK3 UI) | 🪟 Windows 11 (Tkinter / Fluent UI) |
+|:---:|:---:|
+| ![Linux Control Panel](docs/screenshots/linux_control_panel.jpg) | ![Windows 11 Control Panel](docs/screenshots/windows_control_panel.jpg) |
 
 ---
 
@@ -68,11 +71,17 @@ Or via apt:
 sudo apt install ./wifi-ac-guardian_1.0.0_all.deb
 ```
 
-### Option B: Automated Shell Installer
+### Option B: Automated Shell Installer (Linux)
 ```bash
-git clone https://github.com/zohaibjaved/wifi-ac-guardian.git
+git clone https://github.com/zohaib-javd/wifi-ac-guardian.git
 cd wifi-ac-guardian
 ./install.sh
+```
+
+### Option C: Windows 11 Installation
+Copy `wifi-ac-guardian-windows` folder to Windows 11 and double-click:
+```cmd
+install.bat
 ```
 
 ---
