@@ -99,8 +99,8 @@ class LinkInfo:
 class GuardianConfig:
     """Configuration settings for the Wi-Fi monitoring service."""
     interface: Optional[str] = None  # None = auto-detect
-    check_interval: float = 10.0      # Every 10 seconds per requirements
-    reconnect_delay: float = 2.0      # Wait 2 seconds before reconnecting
+    check_interval: float = 15.0     # Every 15 seconds for complete rate adaptation
+    reconnect_delay: float = 15.0     # Wait 15 seconds before reconnecting
     max_attempts: int = 0             # Default 0 = Unlimited Continuous Retries
     log_file_path: str = "~/wifi_ac_guardian.log"
     enable_notifications: bool = False # Popups disabled (tray icon only)

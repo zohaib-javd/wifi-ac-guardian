@@ -122,15 +122,15 @@ def main(args: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "-t", "--interval",
         type=float,
-        default=10.0,
-        help="Polling interval in seconds (default: 10)."
+        default=15.0,
+        help="Polling interval in seconds (default: 15.0)."
     )
 
     parser.add_argument(
         "--max-attempts",
         type=int,
-        default=10,
-        help="Maximum reconnection retry attempts before stopping (default: 10)."
+        default=0,
+        help="Maximum reconnection retry attempts (default: 0 = Unlimited Continuous Retries)."
     )
 
     parser.add_argument(

@@ -33,11 +33,11 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
 
             config = GuardianConfig(
                 interface=data.get("interface"),
-                check_interval=float(data.get("check_interval", 10.0)),
-                reconnect_delay=float(data.get("reconnect_delay", 2.0)),
-                max_attempts=int(data.get("max_attempts", 10)),
+                check_interval=float(data.get("check_interval", 15.0)),
+                reconnect_delay=float(data.get("reconnect_delay", 15.0)),
+                max_attempts=int(data.get("max_attempts", 0)),
                 log_file_path=data.get("log_file_path", "~/wifi_ac_guardian.log"),
-                enable_notifications=bool(data.get("enable_notifications", True)),
+                enable_notifications=bool(data.get("enable_notifications", False)),
                 enable_tray=bool(data.get("enable_tray", True)),
             )
             logger.info(f"Loaded configuration settings from {target_path}")

@@ -34,8 +34,8 @@ class TestModels(unittest.TestCase):
 
     def test_guardian_config_defaults(self):
         config = GuardianConfig()
-        self.assertEqual(config.check_interval, 10.0)
-        self.assertEqual(config.reconnect_delay, 2.0)
+        self.assertEqual(config.check_interval, 15.0)
+        self.assertEqual(config.reconnect_delay, 15.0)
         self.assertEqual(config.max_attempts, 0)
 
     def test_bitrate_threshold_300mbps(self):

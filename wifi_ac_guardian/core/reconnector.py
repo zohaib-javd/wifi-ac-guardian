@@ -60,69 +60,67 @@ class WifiReconnector:
         return updated_link
 
     def _disconnect_interface(self, interface: str, ssid: Optional[str] = None) -> bool:
-        """Disconnects the wireless interface using nmcli."""
-        logger.info(f"Disconnecting Wi-Fi interface {interface} via nmcli...")
+        """Disables the Wi-Fi network card device/radio (similar to Wi-Fi airplane mode toggle)."""
+        logger.info(f"Disabling Wi-Fi network card device ({interface}) via 'nmcli radio wifi off'...")
         try:
             res = subprocess.run(
-                ["nmcli", "device", "disconnect", interface],
+                ["nmcli", "radio", "wifi", "off"],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
             if res.returncode == 0:
-                logger.info(f"Successfully disconnected interface {interface}.")
+                logger.info(f"Successfully disabled Wi-Fi network card radio ({interface}).")
                 return True
             else:
-                logger.warning(f"nmcli disconnect returned non-zero code ({res.returncode}): {res.stderr}")
+                logger.warning(f"nmcli radio wifi off returned code {res.returncode}: {res.stderr}")
         except Exception as e:
-            logger.error(f"Error disconnecting interface {interface}: {e}")
+            logger.error(f"Error turning off Wi-Fi radio: {e}")
 
-        # Fallback: try connection down if SSID is present
-        if ssid:
-            try:
-                subprocess.run(
-                    ["nmcli", "connection", "down", "id", ssid],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-            except Exception as e:
-                logger.error(f"Error disconnecting connection id '{ssid}': {e}")
+        # Fallback: disconnect specific device
+        try:
+            subprocess.run(["nmcli", "device", "disconnect", interface], capture_output=True, text=True, timeout=10)
+        except Exception as e:
+            logger.error(f"Error disconnecting device {interface}: {e}")
 
         return False
 
     def _connect_interface(self, interface: str, ssid: Optional[str] = None) -> bool:
-        """Reconnects Wi-Fi using NetworkManager."""
-        logger.info(f"Initiating Wi-Fi connection on {interface}...")
+        """Re-enables the Wi-Fi network card device/radio and triggers connection."""
+        logger.info(f"Re-enabling Wi-Fi network card device ({interface}) via 'nmcli radio wifi on'...")
+        try:
+            res = subprocess.run(
+                ["nmcli", "radio", "wifi", "on"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if res.returncode == 0:
+                logger.info(f"Successfully re-enabled Wi-Fi network card radio ({interface}).")
+            else:
+                logger.warning(f"nmcli radio wifi on returned code {res.returncode}: {res.stderr}")
+        except Exception as e:
+            logger.error(f"Error turning on Wi-Fi radio: {e}")
 
-        # If specific SSID is known, attempt connection up
+        # Ensure target connection profile is brought up
         if ssid:
             cmd = ["nmcli", "connection", "up", "id", ssid]
-            logger.info(f"Running command: {' '.join(cmd)}")
+            logger.info(f"Bringing up target SSID connection: {' '.join(cmd)}")
             try:
                 res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
                 if res.returncode == 0:
                     logger.info(f"nmcli connection up succeeded for SSID '{ssid}'.")
                     return True
-                else:
-                    logger.warning(f"nmcli connection up failed ({res.returncode}): {res.stderr}")
             except Exception as e:
                 logger.error(f"Error bringing connection '{ssid}' up: {e}")
 
-        # Fallback / General interface connect
-        cmd = ["nmcli", "device", "connect", interface]
-        logger.info(f"Running fallback command: {' '.join(cmd)}")
+        # Fallback device connect
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            if res.returncode == 0:
-                logger.info(f"nmcli device connect succeeded for {interface}.")
-                return True
-            else:
-                logger.warning(f"nmcli device connect output: {res.stdout or res.stderr}")
+            subprocess.run(["nmcli", "device", "connect", interface], capture_output=True, text=True, timeout=15)
         except Exception as e:
             logger.error(f"Error connecting device {interface}: {e}")
 
-        return False
+        return True
 
     def _wait_for_connection(self, interface: str, timeout_seconds: float = 15.0) -> LinkInfo:
         """
