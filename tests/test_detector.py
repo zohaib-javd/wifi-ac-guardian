@@ -42,15 +42,15 @@ class TestDetector(unittest.TestCase):
 
     def test_parse_ht_wifi4_link_output(self):
         raw_output = """Connected to 08:5c:1b:17:7d:80 (on wlp3s0)
-\tSSID: lab5g
-\tfreq: 5805.0
+\tSSID: lab24g
+\tfreq: 2412.0
 \tsignal: -44 dBm
 \trx bitrate: 144.4 MBit/s MCS 15 short GI
 \ttx bitrate: 270.0 MBit/s MCS 14 40MHz short GI
 """
         info = WifiLinkParser.parse_link_output(raw_output, interface="wlp3s0")
         self.assertTrue(info.connected)
-        self.assertEqual(info.ssid, "lab5g")
+        self.assertEqual(info.ssid, "lab24g")
         self.assertEqual(info.phy_mode, PhyMode.HT)
         self.assertFalse(info.is_good)
 

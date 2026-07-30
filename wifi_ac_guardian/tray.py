@@ -15,13 +15,23 @@ from wifi_ac_guardian.logger import get_logger
 
 logger = get_logger()
 
-# Try importing pystray
+# Try importing pystray using appindicator, gtk, or xorg backend
 PYSTRAY_AVAILABLE = False
 try:
-    os.environ.setdefault("PYSTRAY_BACKEND", "xorg")
-    import pystray
-    from pystray import MenuItem as item, Menu
-    PYSTRAY_AVAILABLE = True
+    if "PYSTRAY_BACKEND" not in os.environ:
+        for backend in ["appindicator", "gtk", "xorg"]:
+            try:
+                os.environ["PYSTRAY_BACKEND"] = backend
+                import pystray
+                from pystray import MenuItem as item, Menu
+                PYSTRAY_AVAILABLE = True
+                break
+            except Exception:
+                continue
+    else:
+        import pystray
+        from pystray import MenuItem as item, Menu
+        PYSTRAY_AVAILABLE = True
 except (ImportError, ValueError, Exception) as err:
     logger.debug(f"pystray module backend initialization warning: {err}. Tray applet will run in headless mode.")
     PYSTRAY_AVAILABLE = False
@@ -43,6 +53,7 @@ class SystemTrayApp:
         self.current_link: Optional[LinkInfo] = None
         self.icon_instance: Optional[object] = None
         self._thread: Optional[threading.Thread] = None
+        self._quitting = False
 
     def is_display_available(self) -> bool:
         """Checks if an X11 or Wayland display server environment is active."""
@@ -70,12 +81,13 @@ class SystemTrayApp:
                 item(self._get_status_text, None, enabled=False),
                 item(self._get_phy_text, None, enabled=False),
                 Menu.SEPARATOR,
-                item("🔄 Reconnect Now", self._handle_reconnect),
-                item(self._get_pause_text, self._handle_toggle_pause),
-                item(self._get_notify_text, self._handle_toggle_notify),
+                item("▶️ Start Protection / Reconnecting Retries", self._handle_start_protection),
+                item("⏸️ Pause Protection", self._handle_toggle_pause),
+                item("🔄 Reconnect Once Now", self._handle_reconnect),
                 item("⚙️ Open Control Panel UI", self._handle_open_ui),
                 Menu.SEPARATOR,
-                item("🛑 Stop Service & Quit", self._handle_quit),
+                item("❌ Quit App", self._handle_quit),
+                item("🛑 Exit", self._handle_quit),
             )
 
             self.icon_instance = pystray.Icon(
@@ -85,6 +97,9 @@ class SystemTrayApp:
                 menu
             )
             self.icon_instance.run()
+            # If icon.run() terminates (e.g. Exit option in fallback backend), perform complete app shutdown
+            if not self._quitting:
+                self._handle_quit()
         except Exception as e:
             logger.error(f"Error running system tray icon: {e}")
 
@@ -106,6 +121,15 @@ class SystemTrayApp:
 
     def _get_notify_text(self, item_obj=None) -> str:
         return "🔕 Notifications: OFF" if not self.config.enable_notifications else "🔔 Notifications: ON"
+
+    def _handle_start_protection(self, icon=None, item_obj=None) -> None:
+        self.config.is_paused = False
+        save_config(self.config)
+        logger.info("Tray menu: 'Start Protection / Reconnecting Retries' clicked.")
+        if self.on_reconnect_click:
+            self.on_reconnect_click()
+        if self.icon_instance:
+            self.icon_instance.update_menu()
 
     def _handle_reconnect(self, icon=None, item_obj=None) -> None:
         logger.info("Tray menu: 'Reconnect Now' clicked.")
@@ -134,8 +158,21 @@ class SystemTrayApp:
             logger.error(f"Failed to launch UI from tray menu: {e}")
 
     def _handle_quit(self, icon=None, item_obj=None) -> None:
-        """Callback for 'Stop Service & Quit' menu click."""
-        logger.info("Tray menu: 'Stop Service & Quit' clicked by user.")
+        """Callback for 'Quit App' / 'Exit' menu click."""
+        if self._quitting:
+            return
+        self._quitting = True
+        logger.info("Tray menu: Quit app option clicked by user.")
+
+        # Stop tray icon UI immediately
+        self.stop()
+
+        # Stop monitoring loop if callback is registered
+        if self.on_quit_click:
+            try:
+                self.on_quit_click()
+            except Exception as e:
+                logger.error(f"Error during on_quit_click callback: {e}")
 
         # Stop systemd user service if active
         try:
@@ -143,11 +180,7 @@ class SystemTrayApp:
         except Exception as e:
             logger.error(f"Failed to stop systemd user service: {e}")
 
-        self.stop()
-        if self.on_quit_click:
-            self.on_quit_click()
-
-        # Kill any remaining instances
+        # Kill any remaining instances if process is still running
         try:
             subprocess.run(["pkill", "-f", "wifi-ac-guardian"], check=False)
         except Exception:

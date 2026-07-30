@@ -251,24 +251,16 @@ class WifiACGuardianWindow(Gtk.Window):
         delay_box.pack_start(self.spin_delay, False, False, 0)
         ctrl_box.pack_start(delay_box, False, False, 0)
 
-        # Max Attempts Selector
+        # Max Attempts Selector (0 = Unlimited Continuous Retries)
         max_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        lbl_max = Gtk.Label(label="Max Reconnect Attempts:")
-        lbl_max.set_tooltip_text("Maximum consecutive reconnection retries before giving up")
+        lbl_max = Gtk.Label(label="Max Reconnect Attempts (0 = Unlimited):")
+        lbl_max.set_tooltip_text("Maximum consecutive reconnection retries (0 = Keep retrying continuously until Wi-Fi 5+ is connected)")
         max_box.pack_start(lbl_max, True, True, 0)
 
-        self.spin_max_attempts = Gtk.SpinButton.new_with_range(1, 20, 1)
-        self.spin_max_attempts.set_value(self.config.max_attempts)
+        self.spin_max_attempts = Gtk.SpinButton.new_with_range(0.0, 100.0, 1.0)
+        self.spin_max_attempts.set_value(float(self.config.max_attempts))
         max_box.pack_start(self.spin_max_attempts, False, False, 0)
         ctrl_box.pack_start(max_box, False, False, 0)
-
-        # Desktop Notifications Checkbox
-        notify_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.chk_notifications = Gtk.CheckButton(label="Enable Desktop Notification Popups")
-        self.chk_notifications.set_active(self.config.enable_notifications)
-        self.chk_notifications.set_tooltip_text("Uncheck to silence status bar desktop popups")
-        notify_box.pack_start(self.chk_notifications, True, True, 0)
-        ctrl_box.pack_start(notify_box, False, False, 0)
 
         # Pause Protection Checkbox
         pause_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -277,25 +269,46 @@ class WifiACGuardianWindow(Gtk.Window):
         pause_box.pack_start(self.chk_pause, True, True, 0)
         ctrl_box.pack_start(pause_box, False, False, 0)
 
-        # Save Settings Button
+        # Save Settings Button & Restart Daemon Service Button
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        ctrl_box.pack_start(btn_box, False, False, 0)
+
         btn_save = Gtk.Button(label="💾 Save Settings")
         btn_save.get_style_context().add_class("btn-secondary")
         btn_save.connect("clicked", self._on_save_settings_clicked)
-        ctrl_box.pack_start(btn_save, False, False, 0)
+        btn_box.pack_start(btn_save, True, True, 0)
 
-        # 4. Action Buttons
-        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        main_box.pack_start(action_box, False, False, 0)
+        btn_restart_service = Gtk.Button(label="⚡ Start / Restart Tray Daemon")
+        btn_restart_service.get_style_context().add_class("btn-secondary")
+        btn_restart_service.connect("clicked", self._on_restart_service_clicked)
+        btn_box.pack_start(btn_restart_service, True, True, 0)
 
-        self.btn_reconnect = Gtk.Button(label="🔄 Reconnect Now")
-        self.btn_reconnect.get_style_context().add_class("btn-primary")
+        # 4. Protection Action Buttons
+        action_box1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        main_box.pack_start(action_box1, False, False, 0)
+
+        self.btn_start_protection = Gtk.Button(label="▶️ Start Protection / Reconnecting Retries")
+        self.btn_start_protection.get_style_context().add_class("btn-primary")
+        self.btn_start_protection.connect("clicked", self._on_start_protection_clicked)
+        action_box1.pack_start(self.btn_start_protection, True, True, 0)
+
+        self.btn_pause_protection = Gtk.Button(label="⏸️ Pause Protection")
+        self.btn_pause_protection.get_style_context().add_class("btn-secondary")
+        self.btn_pause_protection.connect("clicked", self._on_pause_protection_clicked)
+        action_box1.pack_start(self.btn_pause_protection, True, True, 0)
+
+        action_box2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        main_box.pack_start(action_box2, False, False, 0)
+
+        self.btn_reconnect = Gtk.Button(label="🔄 Reconnect Once Now")
+        self.btn_reconnect.get_style_context().add_class("btn-secondary")
         self.btn_reconnect.connect("clicked", self._on_reconnect_clicked)
-        action_box.pack_start(self.btn_reconnect, True, True, 0)
+        action_box2.pack_start(self.btn_reconnect, True, True, 0)
 
         btn_view_logs = Gtk.Button(label="📋 View Log File")
         btn_view_logs.get_style_context().add_class("btn-secondary")
         btn_view_logs.connect("clicked", self._on_view_logs_clicked)
-        action_box.pack_start(btn_view_logs, True, True, 0)
+        action_box2.pack_start(btn_view_logs, True, True, 0)
 
     def _make_label(self, text: str, css_class: str) -> Gtk.Label:
         """Helper to build styled Gtk.Label."""
@@ -361,13 +374,12 @@ class WifiACGuardianWindow(Gtk.Window):
         self.config.check_interval = self.spin_interval.get_value()
         self.config.reconnect_delay = self.spin_delay.get_value()
         self.config.max_attempts = int(self.spin_max_attempts.get_value())
-        self.config.enable_notifications = self.chk_notifications.get_active()
         self.config.is_paused = self.chk_pause.get_active()
 
         saved_path = save_config(self.config)
         logger.info(f"Updated configuration: check_interval={self.config.check_interval}s, "
                     f"reconnect_delay={self.config.reconnect_delay}s, max_attempts={self.config.max_attempts}, "
-                    f"enable_notifications={self.config.enable_notifications}, is_paused={self.config.is_paused}")
+                    f"is_paused={self.config.is_paused}")
 
         dialog = Gtk.MessageDialog(
             transient_for=self,
@@ -379,13 +391,66 @@ class WifiACGuardianWindow(Gtk.Window):
         dialog.format_secondary_text(
             f"Check Interval: {self.config.check_interval:.1f}s\n"
             f"Reconnect Delay: {self.config.reconnect_delay:.1f}s\n"
-            f"Max Attempts: {self.config.max_attempts}\n"
-            f"Notifications Enabled: {self.config.enable_notifications}\n"
+            f"Max Attempts: {self.config.max_attempts} (0 = Unlimited)\n"
             f"Protection Paused: {self.config.is_paused}\n\n"
             f"Saved to {saved_path}"
         )
         dialog.run()
         dialog.destroy()
+
+    def _on_start_protection_clicked(self, widget: Gtk.Button) -> None:
+        """Enables active protection retries, unpauses config, and saves."""
+        self.config.is_paused = False
+        self.chk_pause.set_active(False)
+        save_config(self.config)
+        ensure_daemon_running()
+        logger.info("UI: Start Protection clicked. Unpaused and ensured daemon running.")
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            flags=0,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text="Protection Started!",
+        )
+        dialog.format_secondary_text("WiFi AC Guardian is actively enforcing Wi-Fi 5 (802.11ac) protection.")
+        dialog.run()
+        dialog.destroy()
+
+    def _on_pause_protection_clicked(self, widget: Gtk.Button) -> None:
+        """Pauses protection retries."""
+        self.config.is_paused = True
+        self.chk_pause.set_active(True)
+        save_config(self.config)
+        logger.info("UI: Pause Protection clicked.")
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            flags=0,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text="Protection Paused",
+        )
+        dialog.format_secondary_text("Automatic Wi-Fi reconnection protection is now paused.")
+        dialog.run()
+        dialog.destroy()
+
+    def _on_restart_service_clicked(self, widget: Gtk.Button) -> None:
+        """Starts or restarts systemd user service and tray icon daemon."""
+        import subprocess
+        logger.info("User requested systemd daemon restart from UI...")
+        try:
+            subprocess.run(["systemctl", "--user", "restart", "wifi-ac-guardian.service"], check=False)
+            dialog = Gtk.MessageDialog(
+                transient_for=self,
+                flags=0,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.OK,
+                text="Tray Daemon Service Started!",
+            )
+            dialog.format_secondary_text("WiFi AC Guardian daemon and top-right status tray icon have been restarted.")
+            dialog.run()
+            dialog.destroy()
+        except Exception as e:
+            logger.error(f"Failed to restart systemd service: {e}")
 
     def _on_reconnect_clicked(self, widget: Gtk.Button) -> None:
         """Triggers manual reconnection."""
@@ -427,8 +492,26 @@ class WifiACGuardianWindow(Gtk.Window):
             dialog.destroy()
 
 
+def ensure_daemon_running() -> None:
+    """Ensures background systemd user service and tray icon are active."""
+    import subprocess
+    try:
+        res = subprocess.run(
+            ["systemctl", "--user", "is-active", "wifi-ac-guardian.service"],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if res.stdout.strip() != "active":
+            logger.info("Daemon service inactive. Starting wifi-ac-guardian.service...")
+            subprocess.run(["systemctl", "--user", "start", "wifi-ac-guardian.service"], check=False)
+    except Exception as e:
+        logger.debug(f"Failed to check/start wifi-ac-guardian service: {e}")
+
+
 def launch_gui(config: Optional[GuardianConfig] = None) -> None:
     """Entrypoint to launch GTK application window."""
+    ensure_daemon_running()
     app = WifiACGuardianWindow(config=config)
     app.connect("destroy", Gtk.main_quit)
     app.show_all()

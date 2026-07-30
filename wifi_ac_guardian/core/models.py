@@ -28,6 +28,21 @@ class StatusState(Enum):
     IDLE = "IDLE"             # Initial or paused state
 
 
+import re
+
+def extract_bitrate_mbps(bitrate_str: Optional[str]) -> Optional[float]:
+    """Extracts numeric MBit/s bitrate from tx or rx bitrate string."""
+    if not bitrate_str:
+        return None
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*MBit/s", bitrate_str, re.IGNORECASE)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            pass
+    return None
+
+
 @dataclass
 class LinkInfo:
     """Detailed information parsed from 'iw dev <interface> link' output."""
@@ -47,14 +62,36 @@ class LinkInfo:
     @property
     def is_good(self) -> bool:
         """
-        Returns True if the PHY mode is Wi-Fi 5 (VHT), Wi-Fi 6 (HE), or Wi-Fi 7 (EHT).
-        Per requirements, Wi-Fi 5 and higher are considered GOOD.
+        Returns True ONLY if:
+        1. Connection is active.
+        2. Bitrate is GREATER than 300.0 MBit/s (rates <= 300 MBit/s represent Wi-Fi 4 802.11n / HT and are NOT ACCEPTABLE).
+        3. PHY mode is Wi-Fi 5 (VHT), Wi-Fi 6 (HE), or Wi-Fi 7 (EHT), or 5GHz/6GHz band.
         """
-        return self.connected and self.phy_mode in (PhyMode.VHT, PhyMode.HE, PhyMode.EHT)
+        if not self.connected:
+            return False
+
+        bitrate = extract_bitrate_mbps(self.tx_bitrate or self.rx_bitrate)
+
+        # Rates <= 300.0 MBit/s (e.g. 270.0 MBit/s, 300.0 MBit/s, 144.4 MBit/s) indicate Wi-Fi 4 (802.11n) -> NOT GOOD
+        if bitrate is not None and bitrate <= 300.0:
+            return False
+
+        # Wi-Fi 7 (EHT), Wi-Fi 6 (HE), or Wi-Fi 5 (VHT) with bitrate > 300 MBit/s
+        if self.phy_mode in (PhyMode.VHT, PhyMode.HE, PhyMode.EHT):
+            return True
+
+        # 5 GHz / 6 GHz Band (freq >= 5000 MHz) with bitrate > 300 MBit/s
+        if self.freq_mhz and self.freq_mhz >= 5000.0 and (bitrate is None or bitrate > 300.0):
+            return True
+
+        return False
 
     @property
     def phy_summary(self) -> str:
         """Returns concise human-readable description of PHY mode."""
+        bitrate = extract_bitrate_mbps(self.tx_bitrate or self.rx_bitrate)
+        if bitrate is not None and bitrate <= 300.0 and self.connected:
+            return f"802.11n (Wi-Fi 4 - {bitrate:.1f} MBit/s)"
         return self.phy_mode.value
 
 
@@ -64,9 +101,9 @@ class GuardianConfig:
     interface: Optional[str] = None  # None = auto-detect
     check_interval: float = 10.0      # Every 10 seconds per requirements
     reconnect_delay: float = 2.0      # Wait 2 seconds before reconnecting
-    max_attempts: int = 10            # Max retry count (10 attempts)
+    max_attempts: int = 0             # Default 0 = Unlimited Continuous Retries
     log_file_path: str = "~/wifi_ac_guardian.log"
-    enable_notifications: bool = False # Off by default to prevent popup spam
+    enable_notifications: bool = False # Popups disabled (tray icon only)
     enable_tray: bool = True
     is_paused: bool = False
 

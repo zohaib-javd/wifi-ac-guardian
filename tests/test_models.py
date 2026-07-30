@@ -36,7 +36,24 @@ class TestModels(unittest.TestCase):
         config = GuardianConfig()
         self.assertEqual(config.check_interval, 10.0)
         self.assertEqual(config.reconnect_delay, 2.0)
-        self.assertEqual(config.max_attempts, 10)
+        self.assertEqual(config.max_attempts, 0)
+
+    def test_bitrate_threshold_300mbps(self):
+        # 270 MBit/s on 5GHz -> NOT GOOD (Wi-Fi 4)
+        link_270 = LinkInfo(connected=True, freq_mhz=5805.0, tx_bitrate="270.0 MBit/s MCS 14 40MHz short GI")
+        self.assertFalse(link_270.is_good)
+
+        # 300 MBit/s on 5GHz -> NOT GOOD (Wi-Fi 4)
+        link_300 = LinkInfo(connected=True, freq_mhz=5805.0, tx_bitrate="300.0 MBit/s MCS 15 40MHz short GI")
+        self.assertFalse(link_300.is_good)
+
+        # 433.3 MBit/s -> GOOD (Wi-Fi 5)
+        link_433 = LinkInfo(connected=True, phy_mode=PhyMode.VHT, tx_bitrate="433.3 MBit/s VHT-MCS 9 80MHz")
+        self.assertTrue(link_433.is_good)
+
+        # 866.7 MBit/s -> GOOD (Wi-Fi 5)
+        link_866 = LinkInfo(connected=True, phy_mode=PhyMode.VHT, tx_bitrate="866.7 MBit/s VHT-MCS 9 80MHz")
+        self.assertTrue(link_866.is_good)
 
 
 if __name__ == "__main__":

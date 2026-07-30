@@ -54,7 +54,9 @@ class WifiACGuardian:
 
     def force_reconnect(self) -> None:
         """Manually triggers immediate Wi-Fi reconnection routine."""
-        logger.info("Manual reconnection requested.")
+        logger.info("Manual reconnection requested. Resetting retry counter.")
+        with self._lock:
+            self.state.attempts_count = 0
         threading.Thread(target=self._execute_reconnection_sequence, daemon=True).start()
 
     def start(self, run_tray_in_main_thread: bool = False) -> None:
@@ -70,7 +72,7 @@ class WifiACGuardian:
         logger.info(f"Target Interface: {self.config.interface or 'Auto-Detect'}")
         logger.info(f"Check Interval:   {self.config.check_interval:.1f}s")
         logger.info(f"Reconnect Delay:  {self.config.reconnect_delay:.1f}s")
-        logger.info(f"Max Attempts:     {self.config.max_attempts}")
+        logger.info(f"Max Attempts:     {self.config.max_attempts} (0 = Unlimited Continuous)")
         logger.info(f"Log File Path:    {self.config.log_file_path}")
         logger.info("==================================================")
 
@@ -115,7 +117,8 @@ class WifiACGuardian:
 
         while not self.stop_event.is_set():
             # Wait check_interval seconds (responsive to stop_event)
-            if self.stop_event.wait(timeout=self.config.check_interval):
+            interval = max(1.0, float(self.config.check_interval))
+            if self.stop_event.wait(timeout=interval):
                 break
 
             self.perform_check()
@@ -123,15 +126,30 @@ class WifiACGuardian:
     def perform_check(self) -> LinkInfo:
         """
         Performs a single evaluation cycle:
-        1. Queries 'iw dev <interface> link'.
-        2. Evaluates PHY mode (VHT / HE / EHT vs HT / Legacy / Disconnected).
-        3. Takes corrective reconnection action if connection downgraded.
-        4. Updates status, tray icon, and notifications.
+        1. Reloads live config settings from disk.
+        2. Queries 'iw dev <interface> link'.
+        3. Evaluates PHY mode (VHT / HE / EHT vs HT / Legacy / Disconnected).
+        4. Takes corrective reconnection action if connection downgraded.
+        5. Updates status, tray icon, and notifications.
 
         Returns:
             Current parsed LinkInfo instance.
         """
         with self._lock:
+            # Dynamically reload configuration settings from disk
+            try:
+                from wifi_ac_guardian.config import load_config
+                latest_config = load_config()
+                self.config.check_interval = latest_config.check_interval
+                self.config.reconnect_delay = latest_config.reconnect_delay
+                self.config.max_attempts = latest_config.max_attempts
+                self.config.enable_notifications = latest_config.enable_notifications
+                self.config.is_paused = latest_config.is_paused
+                self.reconnector.config = self.config
+                self.notifier.enabled = self.config.enable_notifications
+            except Exception as err:
+                logger.debug(f"Failed to reload live config: {err}")
+
             self.state.last_check = datetime.now()
             link = self.detector.get_link_info()
             self.state.current_link = link
@@ -166,15 +184,28 @@ class WifiACGuardian:
                 f"(TX: {link.tx_bitrate}). Wi-Fi 5 (802.11ac) or higher is required."
             )
 
-            if self.state.attempts_count >= self.config.max_attempts:
-                logger.error(
-                    f"Reached maximum reconnection attempts ({self.config.max_attempts}). "
-                    "Stopping automatic reconnection retries for this cycle."
-                )
-                self._set_status(StatusState.FAILED, link)
-                return link
+            # Check max_attempts limits (0 = Unlimited Continuous Retries)
+            if self.config.max_attempts > 0 and self.state.attempts_count >= self.config.max_attempts:
+                # Cooldown check: if more than 60s passed since last reconnect attempt, reset counter and retry
+                seconds_since_reconnect = 999.0
+                if self.state.last_reconnect:
+                    seconds_since_reconnect = (datetime.now() - self.state.last_reconnect).total_seconds()
 
-            # Connection is lower than Wi-Fi 5 and attempts < max_attempts -> trigger reconnect
+                if seconds_since_reconnect >= 60.0:
+                    logger.info(
+                        f"Cooldown period (60s) completed after {self.config.max_attempts} attempts. "
+                        "Auto-resetting attempt counter to keep retrying Wi-Fi 5 connection..."
+                    )
+                    self.state.attempts_count = 0
+                else:
+                    logger.error(
+                        f"Reached maximum reconnection attempts ({self.config.max_attempts}). "
+                        f"Waiting for cooldown ({60.0 - seconds_since_reconnect:.0f}s remaining)..."
+                    )
+                    self._set_status(StatusState.FAILED, link)
+                    return link
+
+            # Trigger reconnect
             self._execute_reconnection_sequence()
             return self.state.current_link
 

@@ -197,6 +197,8 @@ class WifiLinkParser:
         - Legacy: Standard rate (e.g. 54.0 MBit/s) without MCS or VHT/HE/EHT flags.
         """
         combined = f"{full_text} {tx_bitrate or ''} {rx_bitrate or ''}"
+        from wifi_ac_guardian.core.models import extract_bitrate_mbps
+        bitrate = extract_bitrate_mbps(tx_bitrate or rx_bitrate)
 
         # 1. Wi-Fi 7 (EHT / 802.11be)
         if re.search(r"\b(EHT|EHT-MCS|802\.11be)\b", combined, re.IGNORECASE):
@@ -206,15 +208,29 @@ class WifiLinkParser:
         if re.search(r"\b(HE|HE-MCS|HE-NSS|802\.11ax)\b", combined, re.IGNORECASE):
             return PhyMode.HE
 
-        # 3. Wi-Fi 5 (VHT / 802.11ac)
+        # 3. Explicit Wi-Fi 5 (VHT / 802.11ac)
         if re.search(r"\b(VHT|VHT-MCS|VHT-NSS|802\.11ac)\b", combined, re.IGNORECASE):
+            if bitrate is not None and bitrate <= 300.0:
+                return PhyMode.HT
             return PhyMode.VHT
 
-        # 4. Wi-Fi 4 (HT / 802.11n)
+        # 4. 5 GHz / 6 GHz Band (freq >= 5000 MHz) with bitrate > 300.0 MBit/s
+        freq_match = re.search(r"\bfreq:\s*([0-9]+(?:\.[0-9]+)?)", full_text)
+        if freq_match:
+            try:
+                freq_val = float(freq_match.group(1))
+                if freq_val >= 5000.0:
+                    if bitrate is not None and bitrate <= 300.0:
+                        return PhyMode.HT
+                    return PhyMode.VHT
+            except ValueError:
+                pass
+
+        # 5. Wi-Fi 4 (HT / 802.11n)
         if re.search(r"\b(HT|HT-MCS|MCS|802\.11n)\b", combined, re.IGNORECASE):
             return PhyMode.HT
 
-        # 5. Legacy 802.11a/b/g
+        # 6. Legacy 802.11a/b/g
         if re.search(r"[0-9]+\.?[0-9]*\s*MBit/s", combined, re.IGNORECASE):
             return PhyMode.LEGACY
 

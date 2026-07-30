@@ -20,7 +20,12 @@ class TestGuardian(unittest.TestCase):
             enable_tray=False,
             enable_notifications=False
         )
+        self.patcher = patch("wifi_ac_guardian.config.load_config", return_value=self.config)
+        self.mock_load_config = self.patcher.start()
         self.guardian = WifiACGuardian(config=self.config)
+
+    def tearDown(self):
+        self.patcher.stop()
 
     @patch("wifi_ac_guardian.core.detector.WifiDetector.get_link_info")
     def test_perform_check_good_vht(self, mock_get_link):
@@ -79,10 +84,32 @@ class TestGuardian(unittest.TestCase):
 
         # Pre-set attempt count to max_attempts (3)
         self.guardian.state.attempts_count = 3
+        from datetime import datetime
+        self.guardian.state.last_reconnect = datetime.now()
 
         link = self.guardian.perform_check()
         self.assertEqual(self.guardian.state.status, StatusState.FAILED)
         mock_reconnect.assert_not_called()
+
+    @patch("wifi_ac_guardian.core.reconnector.WifiReconnector.trigger_reconnect")
+    @patch("wifi_ac_guardian.core.detector.WifiDetector.get_link_info")
+    def test_unlimited_max_attempts_zero(self, mock_get_link, mock_reconnect):
+        ht_link = LinkInfo(
+            connected=True,
+            interface="wlp3s0",
+            ssid="lab5g",
+            phy_mode=PhyMode.HT,
+            tx_bitrate="270.0 MBit/s MCS 14"
+        )
+        mock_get_link.return_value = ht_link
+        mock_reconnect.return_value = ht_link
+
+        self.guardian.config.max_attempts = 0
+        self.guardian.state.attempts_count = 50
+
+        link = self.guardian.perform_check()
+        mock_reconnect.assert_called_once()
+        self.assertEqual(self.guardian.state.attempts_count, 51)
 
 
 if __name__ == "__main__":
