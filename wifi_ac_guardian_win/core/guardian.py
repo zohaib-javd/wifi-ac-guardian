@@ -38,6 +38,12 @@ class WifiACGuardianWin:
         self._lock = threading.Lock()
         self._loop_thread: Optional[threading.Thread] = None
 
+        try:
+            from wifi_ac_guardian_win.ipc_server import start_ipc_server
+            start_ipc_server(self)
+        except Exception as e:
+            logger.debug(f"IPC server init note: {e}")
+
         self.tray_app: Optional[SystemTrayAppWin] = None
         if self.config.enable_tray:
             self.tray_app = SystemTrayAppWin(
