@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-08-06  
 **Version**: 1.0.0  
-**Status**: Active Development — Feature 001 implementation in progress (M2 complete)
+**Status**: Active Development — Feature 001 implementation in progress (M3 complete)
 
 ---
 
@@ -39,12 +39,13 @@
 
 **Active Work**: `001-premium-ui-design-system` — Premium UI & Design System (v1.1.0 first feature).
 
-**Status**: Implementation in progress — M0 ✅, M1 ✅, M2 ✅ (awaiting commit).
+**Status**: Implementation in progress — M0 ✅, M1 ✅, M2 ✅, M3 ✅ (awaiting commit).
 
 **Completed Milestones**:
 - [x] M0 — Baseline & Safety Net (T001 visual parity, literal count, test suite baseline)
 - [x] M1 — Design Tokens (T010 token module, T011 contrast tests, T012 ui.py aliasing, D-011 TEXT_MUTED fix)
 - [x] M2 — Status Presentation Descriptor (T020 descriptor module, T021 descriptor tests, T022 ui.py routing, T023 tray/notifier routing)
+- [x] M3 — Component & Hierarchy Pass (T030 components on tokens / zero color literals in draw code, T031 hero-first order, T032 config-derived defaults + D-012, T033 dead-code removal: LineIcon, _open_advanced_dialog, tray helpers)
 
 **Artifacts produced** (all under `specs/001-premium-ui-design-system/`):
 - [x] `spec.md` — 5 user stories, FR-001…FR-028, SC-001…SC-008, 11 clarifications
@@ -52,7 +53,7 @@
 - [x] `tasks.md` — T001…T062 across M0–M6, each with acceptance criteria and complexity
 - [x] `analysis.md` — repository analysis (F-01…F-18) + cross-artifact consistency check
 
-**Next Milestone**: M3 — Component & Hierarchy Pass (T030–T033).
+**Next Milestone**: M4 — Terminology (T040 Upload/Download Link Speed in GUI, T041 tray + CLI parity).
 
 ---
 

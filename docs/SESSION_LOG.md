@@ -36,6 +36,20 @@ Permanent engineering journal. Every AI work session appends one entry.
   (invariant). Dead helpers `_get_status_text`/`_get_phy_text`/`_get_reconnect_label` confirmed
   unused — deferred to T033 (M3, Principle X) to keep T023 surgical.
 - **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M2 close.
+- **M3 — Component & Hierarchy Pass**: Extended the `ui.py` token alias block with speed-bar and
+  interaction tokens; replaced every raw color literal in `SegmentedSpeedBar`/button draw code with
+  tokens (T030 — zero hex literals remain in component draw code). Moved the status hero above the
+  KPI strip for a hero-first reading order (T031, FR-013). Killed baked-in example values ("780 Mbps",
+  "95%", "802.11ac", "0 / 99", "Protected", "HIGH-SPEED WI-FI ACTIVE") — KPI/hero/engine labels now
+  derive from `self.config`/state with neutral `—` placeholders until first poll (T032, FR-015);
+  recorded as **D-012** (includes the one user-visible wording change `Unlimited → 99 (Auto)` in the
+  disconnected engine panel). Removed confirmed dead code (T033, Principle X): `LineIcon` class +
+  its local `math` import, `_open_advanced_dialog`, and tray `_get_status_text`/`_get_phy_text`/
+  `_get_reconnect_label` — all verified unreferenced first.
+- **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M3 close.
+  Headless GUI launch smoke-test deferred to the user's desktop (the guardian's live monitoring loop
+  and single-instance socket do not run cleanly in this non-interactive shell); T031's acceptance is
+  an informal human 3-second visual check.
 
 ### Files Modified
 
@@ -44,9 +58,9 @@ Permanent engineering journal. Every AI work session appends one entry.
 - `tests/test_theme.py` (created)
 - `tests/test_status_presentation.py` (created)
 - `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing)
-- `wifi_ac_guardian_win/tray.py` (modified — tooltip via descriptor)
+- `wifi_ac_guardian_win/tray.py` (modified — tooltip via descriptor; dead helpers removed)
 - `wifi_ac_guardian_win/core/notifier_win.py` (modified — toast text via descriptor)
-- `docs/DECISIONS.md` (D-011 appended)
+- `docs/DECISIONS.md` (D-011, D-012 appended)
 - `PROJECT_STATUS.md`, `docs/SESSION_LOG.md` (memory sync)
 
 ### Problems Encountered

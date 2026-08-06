@@ -138,39 +138,6 @@ class SystemTrayAppWin:
         except Exception as e:
             logger.error(f"Error running Windows system tray icon: {e}")
 
-    def _get_status_text(self, item_obj=None) -> str:
-        if self.config.is_paused:
-            return "⏸️ PAUSED — Protection Suspended"
-
-        link = self.current_link
-        ssid = link.ssid if (link and link.connected and link.ssid) else "No Network"
-        bitrate_str = f" ({link.max_bitrate_mbps:.0f} Mbps)" if (link and link.connected and link.max_bitrate_mbps > 0) else ""
-
-        if self.current_state == StatusState.GOOD:
-            return f"🟢 GOOD — {ssid}{bitrate_str}"
-        elif self.current_state == StatusState.RETRYING:
-            return f"🟡 RESTORING — {ssid}"
-        elif self.current_state == StatusState.FAILED:
-            return f"🔴 DOWNGRADED — {ssid}"
-        elif self.current_state == StatusState.STANDBY:
-            return f"🔵 BACKUP — {ssid}"
-        elif self.current_state == StatusState.DISCONNECTED:
-            return "🔴 DISCONNECTED"
-        return f"WiFi AC Guardian: {self.current_state.value}"
-
-    def _get_phy_text(self, item_obj=None) -> str:
-        if self.current_link and self.current_link.connected:
-            ssid = self.current_link.ssid or "Unknown network"
-            speed = self.current_link.max_bitrate_mbps
-            return f"{self.current_link.phy_summary} • {speed:.0f} Mbps • {ssid}"
-        return "PHY Mode: Disconnected"
-
-    def _get_reconnect_label(self, item_obj=None) -> str:
-        target = self.config.target_ssid or "lab5g"
-        if self.current_state == StatusState.STANDBY:
-            return f"⚡ Switch to Primary ({target})"
-        return "Reconnect Now"
-
     def _get_protection_text(self, item_obj=None) -> str:
         return "Stop Protection" if self.protection_running else "Start Protection"
 

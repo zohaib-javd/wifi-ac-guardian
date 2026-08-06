@@ -253,6 +253,23 @@ output for consistency (Principle VIII).
 
 ---
 
+## D-012 — Pre-Poll Placeholders and Consistent Retry Wording (FR-015)
+
+**Date**: 2026-08-06  
+**Status**: Accepted — implemented in feature 001, M3 (T032)
+
+**Decision**: Dashboard values that were baked-in example strings at widget-creation time are now derived from live `self.config`/state, and honest neutral placeholders (`—`) are shown until the first poll populates real data. As a side effect of centralizing the format, the disconnected-state "Retry attempts" value changed from the literal `Unlimited` to the config-derived `"{max_attempts} (Auto)"`, matching the connected-state format.
+
+**Reason**: FR-015 forbids fabricated placeholder values ("780 Mbps", "95%", "802.11ac", "5805 MHz", "0 / 99", "Protected", "HIGH-SPEED WI-FI ACTIVE") that misrepresent state before any measurement exists. Deriving from config and using neutral dashes tells the truth on first paint. Uniform retry wording across connected/disconnected branches removes a second inconsistency the connected branch already used `(Auto)`.
+
+**Alternatives considered**:
+- Keep example values as "visual filler" — rejected; violates FR-015 and can show a green "protected" hero before the first poll
+- Keep the disconnected branch's `Unlimited` string — rejected; two different words for the same config (`max_attempts=99`) is exactly the cross-surface drift M2/M3 removes. `(Auto)` is retained as it matches the connected branch and settings vocabulary
+
+**Consequences**: On a fresh launch the hero headline reads the IDLE descriptor ("INITIALIZING"), the stats grid shows `—`, the speed bar starts at 0, and engine values reflect the actual config. The only user-visible wording change is `Unlimited → 99 (Auto)` in the disconnected engine panel. No monitoring/threading/IPC logic touched. Implements T031/T032, serves Principle IX (single source of truth) and FR-013 (hero-first honesty).
+
+---
+
 ## Decision Template
 
 ```markdown

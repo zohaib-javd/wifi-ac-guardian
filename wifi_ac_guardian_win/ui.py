@@ -48,6 +48,23 @@ COLOR_TEXT_PRIMARY = theme.TEXT_PRIMARY   # High-contrast white
 COLOR_TEXT_SECONDARY = theme.TEXT_SECONDARY  # Readable secondary text
 COLOR_TEXT_MUTED = theme.TEXT_MUTED
 
+# Interaction states
+COLOR_ACCENT_HOVER = theme.ACCENT_HOVER
+COLOR_ERROR_HOVER = theme.ERROR_HOVER
+COLOR_PANEL_HOVER = theme.PANEL_HOVER
+
+# Speed-bar tokens
+COLOR_TRACK = theme.TRACK
+COLOR_ZONE_RED = theme.ZONE_RED
+COLOR_ZONE_ORANGE = theme.ZONE_ORANGE
+COLOR_ZONE_GREEN = theme.ZONE_GREEN
+COLOR_SCALE_LABEL = theme.SCALE_LABEL
+
+# Button ink (text on filled buttons)
+COLOR_ON_ACCENT = theme.ON_ACCENT
+COLOR_ON_ERROR = theme.ON_ERROR
+COLOR_ON_WARN = theme.ON_WARN
+
 FONT_UI = theme.FONT_UI
 FONT_DISPLAY = theme.FONT_DISPLAY
 FONT_MONO = theme.FONT_MONO
@@ -73,59 +90,6 @@ ROUTER_STATUS_ASSETS = {
 }
 
 
-class LineIcon(tk.Canvas):
-    """Small, consistent outline icon set drawn with Tk canvas primitives."""
-
-    def __init__(self, master, name: str, color: str = COLOR_TEXT_SECONDARY, size: int = 18, **kwargs):
-        super().__init__(master, width=size, height=size, bg=kwargs.pop("bg", COLOR_CARD),
-                         highlightthickness=0, **kwargs)
-        self.name = name
-        self.color = color
-        self.size = size
-        self._draw()
-
-    def _line(self, *coords, width=1.6):
-        self.create_line(*coords, fill=self.color, width=width, capstyle="round", joinstyle="round")
-
-    def _draw(self):
-        s = self.size
-        p = max(3, s * 0.16)
-        mid = s / 2
-        if self.name == "shield":
-            self.create_polygon(mid, p, s - p, p * 1.5, s - p * 1.25, s * .66,
-                                mid, s - p, p * 1.25, s * .66, p, p * 1.5,
-                                outline=self.color, fill="", width=1.7)
-            self._line(mid - 3, mid, mid - 1, mid + 3, mid + 4, mid - 3)
-        elif self.name == "wifi":
-            self._line(p, s * .42, mid, p * .55, s - p, s * .42)
-            self._line(s * .25, s * .61, mid, s * .37, s * .75, s * .61)
-            self.create_oval(mid - 1.7, s * .78 - 1.7, mid + 1.7, s * .78 + 1.7, fill=self.color, outline="")
-        elif self.name == "bolt":
-            self.create_polygon(s * .57, p, s * .25, s * .55, s * .48, s * .55,
-                                s * .34, s - p, s * .76, s * .42, s * .52, s * .42,
-                                fill=self.color, outline="")
-        elif self.name == "history":
-            self.create_arc(p, p, s - p, s - p, start=35, extent=285, outline=self.color, width=1.7)
-            self._line(p, s * .26, p, s * .5, s * .22, s * .42)
-            self._line(mid, mid, mid, s * .33, s * .68, mid)
-        elif self.name == "settings":
-            self.create_oval(p * 1.3, p * 1.3, s - p * 1.3, s - p * 1.3, outline=self.color, width=1.7)
-            self.create_oval(mid - 2, mid - 2, mid + 2, mid + 2, fill=self.color, outline="")
-            for angle in range(0, 360, 45):
-                import math
-                a = math.radians(angle)
-                self._line(mid + math.cos(a) * (s * .38), mid + math.sin(a) * (s * .38),
-                           mid + math.cos(a) * (s * .48), mid + math.sin(a) * (s * .48), width=1.5)
-        elif self.name == "file":
-            self.create_rectangle(p * 1.3, p, s - p * 1.3, s - p, outline=self.color, width=1.5)
-            self._line(s * .32, s * .38, s * .68, s * .38)
-            self._line(s * .32, s * .58, s * .68, s * .58)
-        elif self.name == "info":
-            self.create_oval(p, p, s - p, s - p, outline=self.color, width=1.5)
-            self.create_oval(mid - 1, s * .29, mid + 1, s * .31, fill=self.color, outline="")
-            self._line(mid, s * .42, mid, s * .7)
-
-
 class SegmentedSpeedBar(tk.Canvas):
     """Custom Canvas Widget displaying a 3-zone segmented bitrate quality bar with markers."""
 
@@ -137,7 +101,7 @@ class SegmentedSpeedBar(tk.Canvas):
         max_speed: float = 1000.0,
         width: int = 620,
         height: int = 65,
-        bg: str = "#1D1D1D",
+        bg: str = COLOR_CARD,
         **kwargs
     ):
         super().__init__(
@@ -186,26 +150,26 @@ class SegmentedSpeedBar(tk.Canvas):
         # -----------------------
         radius = bar_height / 2
         self.create_arc(left, top, left + bar_height, top + bar_height, start=90, extent=180,
-                        fill="#333333", outline="")
+                        fill=COLOR_TRACK, outline="")
         self.create_rectangle(left + radius, top, right - radius, top + bar_height,
-                              fill="#333333", outline="")
+                              fill=COLOR_TRACK, outline="")
         self.create_arc(right - bar_height, top, right, top + bar_height, start=270, extent=180,
-                        fill="#333333", outline="")
+                        fill=COLOR_TRACK, outline="")
 
         # -----------------------
         # Red Zone (0-200 Mbps)
         # -----------------------
-        self.create_rectangle(x(0), top, x(200), top + bar_height, fill="#E74C3C", outline="")
+        self.create_rectangle(x(0), top, x(200), top + bar_height, fill=COLOR_ZONE_RED, outline="")
 
         # -----------------------
         # Orange Zone (200-300 Mbps)
         # -----------------------
-        self.create_rectangle(x(200), top, x(300), top + bar_height, fill="#F39C12", outline="")
+        self.create_rectangle(x(200), top, x(300), top + bar_height, fill=COLOR_ZONE_ORANGE, outline="")
 
         # -----------------------
         # Green Zone (300-1000 Mbps)
         # -----------------------
-        self.create_rectangle(x(300), top, x(1000), top + bar_height, fill="#2ECC71", outline="")
+        self.create_rectangle(x(300), top, x(1000), top + bar_height, fill=COLOR_ZONE_GREEN, outline="")
 
         # -----------------------
         # Threshold Marker Line (300 Mbps)
@@ -216,7 +180,7 @@ class SegmentedSpeedBar(tk.Canvas):
             top - 6,
             tx,
             top + bar_height + 6,
-            fill="white",
+            fill=COLOR_TEXT_PRIMARY,
             width=2
         )
 
@@ -224,7 +188,7 @@ class SegmentedSpeedBar(tk.Canvas):
             tx,
             top - 12,
             text="300 Mbps",
-            fill="#F39C12",
+            fill=COLOR_ZONE_ORANGE,
             font=(FONT_UI, 8, "bold")
         )
 
@@ -237,7 +201,7 @@ class SegmentedSpeedBar(tk.Canvas):
             top - 2,
             sx,
             top + bar_height + 2,
-            fill="white",
+            fill=COLOR_TEXT_PRIMARY,
             width=3
         )
 
@@ -245,7 +209,7 @@ class SegmentedSpeedBar(tk.Canvas):
             sx,
             top + 32,
             text=f"{self.current_speed:.0f} Mbps",
-            fill="white",
+            fill=COLOR_TEXT_PRIMARY,
             font=(FONT_MONO, 8, "bold")
         )
 
@@ -257,7 +221,7 @@ class SegmentedSpeedBar(tk.Canvas):
             top - 12,
             anchor="w",
             text="0 Mbps",
-            fill="#BBBBBB",
+            fill=COLOR_SCALE_LABEL,
             font=(FONT_UI, 8)
         )
 
@@ -266,7 +230,7 @@ class SegmentedSpeedBar(tk.Canvas):
             top - 12,
             anchor="e",
             text=f"{int(self.max_speed)} Mbps",
-            fill="#BBBBBB",
+            fill=COLOR_SCALE_LABEL,
             font=(FONT_UI, 8)
         )
 
@@ -505,9 +469,10 @@ class WifiACGuardianWinUI(tk.Tk):
         kpi_strip.columnconfigure(0, weight=1, uniform="kpi")
         kpi_strip.columnconfigure(1, weight=1, uniform="kpi")
         self.kpi_labels = {}
+        # Initial KPI values derive from config/state, not baked-in examples (feature 001, T032 - FR-015)
         for row, col, key, icon, title, value in [
-            (0, 0, "status", "shield", "Status", "Protected"),
-            (0, 1, "retry", "history", "Retry state", "0 / 99"),
+            (0, 0, "status", "shield", "Status", StatusState.IDLE.value.capitalize()),
+            (0, 1, "retry", "history", "Retry state", f"0 / {self.config.max_attempts}"),
             (1, 0, "tx", "bolt", "TX rate", "— Mbps"),
             (1, 1, "rx", "bolt", "RX rate", "— Mbps"),
         ]:
@@ -532,7 +497,8 @@ class WifiACGuardianWinUI(tk.Tk):
             self.kpi_labels[key] = value_label
 
         hero_shell = RoundedCard(main_box, surface=COLOR_CARD, radius=16, inset=18)
-        hero_shell.pack(fill="x", pady=(0, 16))
+        # Hero-first hierarchy: status hero sits above the KPI strip (feature 001, T031 - FR-013)
+        hero_shell.pack(fill="x", pady=(0, 16), before=kpi_strip)
         hero_card = hero_shell.content
         hero_top = tk.Frame(hero_card, bg=COLOR_CARD)
         hero_top.pack(fill="x", pady=(0, 14))
@@ -541,10 +507,14 @@ class WifiACGuardianWinUI(tk.Tk):
             bg=COLOR_CARD, bd=0, highlightthickness=0
         )
         self.lbl_status_icon.pack(side="left", padx=(0, 8))
-        self.lbl_hero_state = tk.Label(hero_top, text="HIGH-SPEED WI-FI ACTIVE", font=(FONT_UI, 11, "bold"),
-                                       fg=COLOR_ACCENT, bg=COLOR_CARD)
+
+        # Initial hero headline from IDLE state descriptor (feature 001, T032 - FR-015)
+        from wifi_ac_guardian_win.status_presentation import get_presentation
+        idle_desc = get_presentation(StatusState.IDLE, target_ssid=self.config.target_ssid)
+        self.lbl_hero_state = tk.Label(hero_top, text=idle_desc.headline, font=(FONT_UI, 11, "bold"),
+                                       fg=COLOR_INFO, bg=COLOR_CARD)
         self.lbl_hero_state.pack(side="left")
-        self.lbl_target_info = tk.Label(hero_top, text="Target  lab5g", font=(FONT_MONO, 8),
+        self.lbl_target_info = tk.Label(hero_top, text=f"Target: {self.config.target_ssid}", font=(FONT_MONO, 8),
                                         fg=COLOR_TEXT_MUTED, bg=COLOR_CARD)
         self.lbl_target_info.pack(side="right", pady=2)
 
@@ -553,10 +523,11 @@ class WifiACGuardianWinUI(tk.Tk):
         stats_panel = stats_shell.content
         # Non-duplicated fields (Interface, Frequency) merged in from the removed
         # Connection overview frame. Laid out as a 2-row grid to fit 540px width.
-        grid_cols = [("Connected to", "lab5g", "connected_to"), ("Status", "GOOD", "status_val"),
-                     ("Current speed", "780 Mbps", "speed_val"), ("PHY mode", "802.11ac", "phy_val"),
-                     ("Signal", "95%", "signal_val"), ("Interface", "Wi-Fi", "interface_val"),
-                     ("Frequency", "5805 MHz", "freq_val")]
+        # Placeholders are neutral until the first poll populates live values (feature 001, T032 - FR-015)
+        grid_cols = [("Connected to", "—", "connected_to"), ("Status", StatusState.IDLE.value, "status_val"),
+                     ("Current speed", "—", "speed_val"), ("PHY mode", "—", "phy_val"),
+                     ("Signal", "—", "signal_val"), ("Interface", self.config.interface or "Wi-Fi", "interface_val"),
+                     ("Frequency", "—", "freq_val")]
         self.hero_labels = {}
         cells_per_row = 4
         for idx, (label_k, default_v, key) in enumerate(grid_cols):
@@ -566,7 +537,7 @@ class WifiACGuardianWinUI(tk.Tk):
             stats_panel.columnconfigure(c, weight=1, uniform="hero")
             tk.Label(cell, text=label_k.upper(), font=(FONT_UI, 7, "bold"), fg=COLOR_TEXT_MUTED,
                      bg=COLOR_PANEL).pack(anchor="w")
-            v_fg = COLOR_ACCENT if key in ("status_val", "speed_val") else COLOR_TEXT_PRIMARY
+            v_fg = COLOR_INFO if key in ("status_val", "speed_val") else COLOR_TEXT_PRIMARY
             v_lbl = tk.Label(cell, text=default_v, font=(FONT_MONO, 9, "bold"), fg=v_fg, bg=COLOR_PANEL)
             v_lbl.pack(anchor="w", pady=(4, 0))
             self.hero_labels[key] = v_lbl
@@ -577,7 +548,7 @@ class WifiACGuardianWinUI(tk.Tk):
                  fg=COLOR_TEXT_SECONDARY, bg=COLOR_CARD).pack(side="left")
         tk.Label(meter_hdr, text="300 Mbps protected threshold", font=(FONT_UI, 8),
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(side="right")
-        self.speed_bar = SegmentedSpeedBar(hero_card, current_speed=780.0, threshold=300.0,
+        self.speed_bar = SegmentedSpeedBar(hero_card, current_speed=0.0, threshold=300.0,
                                            max_speed=1000.0, height=68, bg=COLOR_CARD)
         self.speed_bar.pack(fill="x", pady=(0, 0))
 
@@ -589,9 +560,16 @@ class WifiACGuardianWinUI(tk.Tk):
         engine_grid = tk.Frame(engine_card, bg=COLOR_CARD)
         engine_grid.pack(fill="x", pady=(8, 8))
         self.engine_labels = {}
-        pairs_engine = [("Check interval", "10 sec", "interval"),
-                        ("Reconnect delay", "15 sec", "delay"), ("Retry attempts", "99 (Auto)", "attempts"),
-                        ("Last check", "Just now", "last_check")]
+
+        # Derive initial values from config (feature 001, T032 - FR-015)
+        interval_str = f"{self.config.check_interval:.0f} sec"
+        delay_str = f"{self.config.reconnect_delay:.0f} sec"
+        attempts_str = f"{self.config.max_attempts} (Auto)"
+
+        pairs_engine = [("Check interval", interval_str, "interval"),
+                        ("Reconnect delay", delay_str, "delay"),
+                        ("Retry attempts", attempts_str, "attempts"),
+                        ("Last check", "—", "last_check")]
         for idx, (k_txt, v_txt, key) in enumerate(pairs_engine):
             r, c = divmod(idx, 2)
             cell = tk.Frame(engine_grid, bg=COLOR_CARD)
@@ -603,15 +581,15 @@ class WifiACGuardianWinUI(tk.Tk):
             self.engine_labels[key] = v_lbl
         self.btn_reconnect = RoundedButton(
             engine_card, text="Reconnect now", command=self._on_reconnect_click,
-            bg=COLOR_ACCENT, fg="#0A1C11", activebackground="#2AE07B",
-            activeforeground="#0A1C11", font=(FONT_UI, 9, "bold"),
+            bg=COLOR_ACCENT, fg=COLOR_ON_ACCENT, activebackground=COLOR_ACCENT_HOVER,
+            activeforeground=COLOR_ON_ACCENT, font=(FONT_UI, 9, "bold"),
             image=self._fluent_image("history", 22), height=42
         )
         self.btn_reconnect.pack(fill="x", pady=(6, 0))
         self.btn_protection = RoundedButton(
             engine_card, text="Stop protection", command=self._on_protection_toggle,
-            bg=COLOR_ERROR, fg="#FFFFFF", activebackground="#FF6255",
-            activeforeground="#FFFFFF", font=(FONT_UI, 9, "bold"),
+            bg=COLOR_ERROR, fg=COLOR_ON_ERROR, activebackground=COLOR_ERROR_HOVER,
+            activeforeground=COLOR_ON_ERROR, font=(FONT_UI, 9, "bold"),
             image=self._fluent_image("shield", 22), height=42
         )
         self.btn_protection.pack(fill="x", pady=(8, 0))
@@ -623,7 +601,7 @@ class WifiACGuardianWinUI(tk.Tk):
                                        ("info", "info", "About", self._open_about_dialog)]:
             btn = RoundedButton(
                 toolbar, text=label, command=cmd, bg=COLOR_PANEL, fg=COLOR_TEXT_PRIMARY,
-                activebackground="#303030", activeforeground=COLOR_TEXT_PRIMARY,
+                activebackground=COLOR_PANEL_HOVER, activeforeground=COLOR_TEXT_PRIMARY,
                 font=(FONT_UI, 8, "bold"), image=self._fluent_image(icon, 22), height=38
             )
             btn.pack(side="left", fill="x", expand=True, padx=4)
@@ -798,22 +776,12 @@ class WifiACGuardianWinUI(tk.Tk):
             text="Save settings",
             command=save_and_close,
             bg=COLOR_ACCENT,
-            fg="#0A1C11",
+            fg=COLOR_ON_ACCENT,
             font=(FONT_UI, 10, "bold"),
             pady=6,
             bd=0
         )
         btn_save.pack(fill="x", padx=20, pady=16)
-
-    def _open_advanced_dialog(self) -> None:
-        messagebox.showinfo(
-            "Advanced Reset Engine",
-            "WiFi AC Guardian Engine Info:\n\n"
-            "• Reset Method: WinRT WiFiControl / PowerShell Radio Reset\n"
-            "• Threshold: 300 Mbps (Automatic Radio Reset Enforcer)\n"
-            "• Primary Enforcer: lab5g (Wi-Fi 5+)\n"
-            "• Standby Router Protection: Active for Metalgear & secondary SSIDs."
-        )
 
     def _open_log_file(self) -> None:
         log_path = self.config.log_file_path
@@ -921,9 +889,9 @@ class WifiACGuardianWinUI(tk.Tk):
             self.hero_labels["interface_val"].config(text=link.interface or "Wi-Fi")
             self.hero_labels["freq_val"].config(text="N/A")
 
-            self.engine_labels["interval"].config(text="10 sec")
-            self.engine_labels["delay"].config(text="15 sec")
-            self.engine_labels["attempts"].config(text="Unlimited")
+            self.engine_labels["interval"].config(text=f"{self.config.check_interval:.0f} sec")
+            self.engine_labels["delay"].config(text=f"{self.config.reconnect_delay:.0f} sec")
+            self.engine_labels["attempts"].config(text=f"{self.config.max_attempts} (Auto)")
             self.engine_labels["last_check"].config(text="Just now")
             self.speed_bar.set_speed(0.0)
             self.kpi_labels["tx"].config(text="— Mbps")
@@ -964,12 +932,12 @@ class WifiACGuardianWinUI(tk.Tk):
             self.guardian.tray_app.set_protection_running(self.guardian.state.running)
         if self.guardian.state.running:
             self.btn_protection.config(
-                text="Stop protection", bg=COLOR_ERROR, fg="#FFFFFF",
-                activebackground="#FF6255", activeforeground="#FFFFFF"
+                text="Stop protection", bg=COLOR_ERROR, fg=COLOR_ON_ERROR,
+                activebackground=COLOR_ERROR_HOVER, activeforeground=COLOR_ON_ERROR
             )
             self.btn_reconnect.config(state="normal")
         else:
-            self.btn_protection.config(text="Start protection", bg=COLOR_ACCENT, fg="#0A1C11", activebackground="#2AE07B")
+            self.btn_protection.config(text="Start protection", bg=COLOR_ACCENT, fg=COLOR_ON_ACCENT, activebackground=COLOR_ACCENT_HOVER)
             self.btn_reconnect.config(state="disabled")
 
 
