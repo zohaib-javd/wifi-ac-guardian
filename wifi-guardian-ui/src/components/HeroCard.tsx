@@ -48,7 +48,7 @@ export default function HeroCard({
 
           <div className="mt-1.5 flex items-center space-x-2 text-xs text-[#A1A7AE] flex-wrap">
             <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse flex-shrink-0" />
-            <span>Subtle status glow</span>
+            <span className="font-semibold text-[#F2F4F7]">Active Protection</span>
             <span className="text-[#6B7280]">|</span>
             <span>Connected to <strong className="text-[#F2F4F7]">{ssid}</strong></span>
             <span className="text-[#6B7280]">|</span>
