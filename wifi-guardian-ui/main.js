@@ -102,10 +102,10 @@ function startPythonBackend() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 1100,
-    minHeight: 760,
+    width: 960,
+    height: 740,
+    minWidth: 880,
+    minHeight: 660,
     backgroundColor: '#0D0F10',
     title: 'WiFi AC Guardian',
     autoHideMenuBar: true,
@@ -138,7 +138,7 @@ function createWindow() {
 }
 
 function createSystemTray() {
-  const iconPath = path.join(__dirname, 'public', 'router.png');
+  const iconPath = path.join(__dirname, 'public', 'wifi_icon.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   
   tray = new Tray(icon);

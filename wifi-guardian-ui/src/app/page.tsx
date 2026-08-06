@@ -17,16 +17,15 @@ export default function Home() {
   const [telemetry, setTelemetry] = useState({
     status: 'Active',
     ssid: 'lab5g',
-    linkSpeed: 866.5,
+    linkSpeed: 872.2,
     reconnectAttempts: 0,
     uploadSpeed: 866.5,
     downloadSpeed: 866.5,
   });
 
-  // Polling IPC simulation / local backend bridge fetch
+  // Telemetry update loop
   useEffect(() => {
     const interval = setInterval(() => {
-      // Small real-time jitter simulation for telemetry feedback
       setTelemetry((prev) => ({
         ...prev,
         linkSpeed: Math.min(1000, Math.max(780, prev.linkSpeed + (Math.random() * 4 - 2))),
@@ -46,13 +45,17 @@ export default function Home() {
     }));
   };
 
+  const handleOpenLogs = () => {
+    alert("Opening application log file...");
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F10]">
       {/* Header */}
       <Header />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-[1200px] w-full mx-auto p-6 space-y-4">
+      {/* Main Compact Content Area */}
+      <main className="flex-1 max-w-[920px] w-full mx-auto p-5 space-y-4">
         {/* 1. Hero Section */}
         <HeroCard
           statusText={telemetry.status === 'Active' ? 'Protected — High-Speed Wi-Fi Active' : 'Protection Paused'}
@@ -82,12 +85,16 @@ export default function Home() {
       {/* Bottom Pinned Toolbar */}
       <BottomToolbar
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenLogs={() => alert("Opening application log file...")}
+        onOpenLogs={handleOpenLogs}
         onOpenAbout={() => setIsAboutOpen(true)}
       />
 
       {/* Modals */}
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onOpenLogs={handleOpenLogs}
+      />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   );
