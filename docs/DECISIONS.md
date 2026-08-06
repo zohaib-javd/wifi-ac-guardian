@@ -303,6 +303,44 @@ honoring D-003 and the architecture invariants.
 
 ---
 
+## D-014 — Event-Driven Micro-Animation Engine, Default OFF with Automatic Fallback
+
+**Date**: 2026-08-06  
+**Status**: Accepted
+
+**Decision**: M6 motion ships as a single small module (`wifi_ac_guardian_win/animation.py`) that
+drives every tween through `widget.after()` on the main UI thread. Motion is **event-driven only**
+(state/value changes), 150–250 ms, cubic ease-in-out, time-based (drops frames rather than
+stretching). It is gated by a single global setting `animations_enabled` that **defaults to OFF**,
+refuses to run on non-viewable widgets, and **automatically and permanently falls back to instant
+updates for the session** if frames slip past budget twice in one tween. Only T060 (hero headline
+color cross-fade) and T061 (speed-bar value tween) ship; hero artwork alpha-fade, hover tweens, and
+the T062 reset-progress cue are deferred.
+
+**Reason**: The product is a background utility, not a dashboard. Animation may only enhance
+perceived quality without drawing attention and must never affect monitoring/reconnect timing or
+consume CPU when the panel is closed. `after()` on the UI thread keeps motion off the monitor
+threads; default-OFF plus session fallback guarantees the app degrades to today's instant behavior
+if motion ever costs measurable responsiveness.
+
+**Alternatives considered**:
+- Default animations ON — rejected: unvalidated on real hardware; violates the stated "OFF until
+  performance is validated on a real desktop" requirement.
+- Continuous/idle cues (pulsing, reset-progress spinner, animated artwork) — rejected: forbidden by
+  the "no continuous/idle/looping motion" policy; the T062 progress cue would be continuous.
+- Thread/timer-based animation — rejected: would cross the presentation/monitoring boundary and
+  risk reconnect timing; violates the "after() on the main UI thread only" requirement.
+- Tk `PhotoImage` artwork cross-fade — deferred: no cheap per-frame alpha; needs pre-blended frames,
+  disproportionate cost for a background app.
+
+**Consequences**: `core/` must never import `animation.py` (presentation-only boundary, D-003).
+Pure logic is unit-tested (`tests/test_animation.py`); the `after()` loop and SC-008 perceived
+smoothness are verified on the desktop where the toggle is exercised. Motion is invisible until a
+user opts in, so existing behavior is fully preserved by default (FR-025). Serves the M6 animation
+principles and Principle V (Professional Engineering).
+
+---
+
 ## Decision Template
 
 ```markdown

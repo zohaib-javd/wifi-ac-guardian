@@ -97,6 +97,7 @@ class GuardianConfig:
     enable_tray: bool = True
     start_minimized: bool = False         # Start the UI hidden in the system tray
     is_paused: bool = False
+    animations_enabled: bool = False      # UI micro-animations (presentation-only); OFF until validated
 
 
 @dataclass

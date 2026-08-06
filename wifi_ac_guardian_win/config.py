@@ -100,6 +100,7 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
                 enable_tray=bool(data.get("enable_tray", True)),
                 start_minimized=bool(data.get("start_minimized", False)),
                 is_paused=bool(data.get("is_paused", False)),
+                animations_enabled=bool(data.get("animations_enabled", False)),
             )
         except Exception as e:
             logger.warning(f"Error loading config: {e}. Using defaults.")
@@ -124,6 +125,7 @@ def save_config(config: GuardianConfig, config_path: Optional[str] = None) -> st
         "enable_tray": config.enable_tray,
         "start_minimized": config.start_minimized,
         "is_paused": config.is_paused,
+        "animations_enabled": config.animations_enabled,
     }
 
     with open(target_path, "w", encoding="utf-8") as f:

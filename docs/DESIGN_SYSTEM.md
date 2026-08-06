@@ -174,3 +174,55 @@ No Tk DPI-awareness call was added: Tk on Windows already scales fonts/geometry 
 DPI, and adding `SetProcessDpiAwareness` risks disturbing the window/tray behavior guarded by the
 architecture invariants. A call will be added only if the desktop check reveals a concrete legibility
 or clipping defect (T052 acceptance).
+
+---
+
+## 7. Motion (M6, `wifi_ac_guardian_win/animation.py`)
+
+WiFi AC Guardian is a background utility, not a dashboard. Motion may only sharpen perceived
+quality; it must never draw attention. The engine is a single small module; `core/` must never
+import it (presentation-only boundary).
+
+### Policy
+
+- **Event-driven only.** Motion runs in response to a discrete state/value change — never idle,
+  looping, pulsing, or continuous. No animated backgrounds, glows, or particles.
+- **Duration 150–250 ms** (`DURATION_MS = 200`), **cubic ease-in-out** (`ease_in_out`).
+- **Main thread only.** Every tween is driven by `widget.after()`; nothing touches the monitor
+  or reconnect threads, so timing is unaffected (FR-016).
+- **Time-based interpolation.** A slow frame drops intermediate steps rather than stretching the
+  animation — total duration is fixed and the UI stays responsive.
+- **Zero cost when closed / tray / minimized.** `after()` only fires inside a running mainloop,
+  and `animate()` refuses a non-viewable widget (`winfo_viewable()` → instant `apply(1.0)`), so a
+  hidden or withdrawn window does no per-frame work.
+- **Single global setting, default OFF.** `Settings → “Enable animations (experimental)”`
+  persists to `animations_enabled` (default `False`) until validated on real hardware.
+- **Automatic fallback.** If frames slip past the budget (`_FRAME_MS + _BUDGET_SLIP_MS`) twice
+  in one tween, the engine snaps to the final value and disables motion for the rest of the
+  session (`is_enabled()` returns `False` until the user re-opts-in). Stutter never persists.
+
+### Shipped animations
+
+| ID | Surface | What animates | Trigger |
+|----|---------|---------------|---------|
+| T060 | Hero headline | Foreground color cross-fade between status accents (`lerp_color`) | Protection **state** change |
+| T061 | `SegmentedSpeedBar` | Fill value tween toward the new speed; restart cancels the prior tween; sub-0.5 Mbps deltas snap instantly | New link-speed **reading** |
+
+### Deferred (documented, not shipped)
+
+- **Hero artwork alpha-fade** — Tk `PhotoImage` has no cheap per-frame alpha; a real cross-fade
+  would need pre-blended frames per state pair. Deferred to avoid asset/CPU cost for a background
+  app; the headline color cross-fade already signals the state change.
+- **Hover tweens (buttons/cards)** — hover fires rapidly; instant hover feedback is already
+  crisp and rapid-fire tweens risk visible churn. Kept instant.
+- **Reset-progress cue (T062, ~45 s)** — a continuous progress indicator during the reconnect
+  wait would be idle/looping motion, which the policy forbids. Left as an instant state label.
+
+These are intentional scope boundaries, not omissions: each would either violate the “no
+continuous/idle motion” rule or add cost disproportionate to a background utility.
+
+### Verification
+
+Pure logic (easing curve, color interpolation, enable/fallback state machine) is unit-tested in
+`tests/test_animation.py`. The `after()`-driven loop needs a live mainloop; perceived smoothness
+and click-responsiveness (SC-008) are confirmed on the desktop, where the toggle is also exercised.

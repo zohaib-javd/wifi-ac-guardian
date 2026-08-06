@@ -74,19 +74,41 @@ Permanent engineering journal. Every AI work session appends one entry.
   DPI-awareness call was added to avoid disturbing the window/tray invariants unless a concrete
   defect is found. Recorded the DPI deferral as **D-013**.
 - **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M5 close.
+- **M6 — Animation**: Built a small `after()`-driven, main-thread animation engine
+  `wifi_ac_guardian_win/animation.py` — event-driven only, 150–250 ms (`DURATION_MS=200`), cubic
+  ease-in-out, **time-based** (drops intermediate frames under load rather than stretching), with a
+  `winfo_viewable()` guard (no motion when the panel is closed/minimized/in the tray → zero per-frame
+  cost) and an automatic **session fallback to instant** if frames slip past budget twice in one tween.
+  Added a single global `animations_enabled` config field (**default OFF**) to `core/models.py`, wired
+  through `config.py` load/save, exposed as the "Enable animations (experimental)" checkbox in the
+  Settings dialog, and applied via `animation.set_enabled(...)`. Shipped T060 (hero headline foreground
+  color cross-fade between status accents via `lerp_color`, routed through a new `_set_hero_headline`)
+  and T061 (`SegmentedSpeedBar.set_speed` value tween that cancels any in-flight tween on restart and
+  snaps instantly for sub-0.5 Mbps deltas). Deferred hero artwork alpha-fade (Tk `PhotoImage` has no
+  cheap per-frame alpha), hover tweens (rapid-fire; already instant), and the T062 reset-progress cue
+  (would be continuous/idle motion, forbidden by policy) — each documented in `DESIGN_SYSTEM.md` §7
+  and **D-014**. `core/` never imports `animation.py` (presentation-only boundary held). Added
+  `tests/test_animation.py` — 9 tests / 101 subtests over the pure logic (easing endpoints/monotonicity,
+  `lerp_color` endpoints/midpoint/parse-fallback, enable-fallback state machine). SC-008 (perceived
+  smoothness / click-responsiveness with the toggle on) deferred to the desktop, where the full UI runs.
+- **Verification**: `compileall` clean; `pytest -q` → **26 passed / 141 subtests** at M6 close.
 
 ### Files Modified
 
+- `wifi_ac_guardian_win/animation.py` (created — M6 engine)
+- `tests/test_animation.py` (created — M6 pure-logic tests)
 - `wifi_ac_guardian_win/theme.py` (created; M5 added FOCUS_RING token)
 - `wifi_ac_guardian_win/status_presentation.py` (created)
 - `tests/test_theme.py` (created)
 - `tests/test_status_presentation.py` (created)
-- `docs/DESIGN_SYSTEM.md` (created — M5/T053)
-- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing + KPI relabel + focusable button)
+- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing + KPI relabel + focusable button + M6 hero/speed-bar tweens + animations toggle)
 - `wifi_ac_guardian_win/cli.py` (modified — `--status` "Link Speed:" relabel)
 - `wifi_ac_guardian_win/tray.py` (modified — tooltip via descriptor; dead helpers removed)
 - `wifi_ac_guardian_win/core/notifier_win.py` (modified — toast text via descriptor)
-- `docs/DECISIONS.md` (D-010 Accepted, D-011, D-012 appended)
+- `wifi_ac_guardian_win/core/models.py` (modified — M6 `animations_enabled` config field)
+- `wifi_ac_guardian_win/config.py` (modified — M6 `animations_enabled` load/save)
+- `docs/DECISIONS.md` (D-010 Accepted, D-011, D-012, D-013, D-014 appended)
+- `docs/DESIGN_SYSTEM.md` (created — M5/T053; M6 added §7 Motion)
 - `PROJECT_STATUS.md`, `docs/SESSION_LOG.md` (memory sync)
 
 ### Problems Encountered

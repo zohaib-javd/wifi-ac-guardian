@@ -21,6 +21,7 @@ from wifi_ac_guardian_win.core.guardian import WifiACGuardianWin
 from wifi_ac_guardian_win.single_instance import SingleInstanceChecker
 from wifi_ac_guardian_win.config import load_config, save_config
 from wifi_ac_guardian_win.logger import get_logger
+from wifi_ac_guardian_win import animation
 
 logger = get_logger()
 
@@ -119,6 +120,7 @@ class SegmentedSpeedBar(tk.Canvas):
         self.current_speed = float(current_speed)
         self.threshold = float(threshold)
         self.max_speed = float(max_speed)
+        self._anim = None
 
         self.bind("<Configure>", self._on_resize)
         self.draw()
@@ -129,8 +131,23 @@ class SegmentedSpeedBar(tk.Canvas):
             self.draw()
 
     def set_speed(self, speed: float) -> None:
-        self.current_speed = max(0.0, float(speed))
-        self.draw()
+        """Move the cursor to ``speed``, tweening the value when animations are on
+        (T061). Falls back to an instant jump if disabled or the bar isn't visible."""
+        target = max(0.0, float(speed))
+        if self._anim is not None:
+            self._anim.cancel()
+            self._anim = None
+        start = self.current_speed
+        if abs(target - start) < 0.5:
+            self.current_speed = target
+            self.draw()
+            return
+
+        def apply(t: float) -> None:
+            self.current_speed = start + (target - start) * t
+            self.draw()
+
+        self._anim = animation.animate(self, apply)
 
     def draw(self) -> None:
         self.delete("all")
@@ -418,6 +435,12 @@ class WifiACGuardianWinUI(tk.Tk):
         self.reconnector = self.guardian.reconnector
         self._fluent_images = {}
         self._router_status_images = {}
+
+        # M6: apply the single global animation preference (default OFF) and
+        # prepare the hero cross-fade state. Presentation-only.
+        animation.set_enabled(self.config.animations_enabled)
+        self._prev_hero_accent = None
+        self._hero_anim = None
 
         # Connect system tray callbacks safely to main thread
         if self.guardian.tray_app:
@@ -777,6 +800,13 @@ class WifiACGuardianWinUI(tk.Tk):
             activeforeground=COLOR_TEXT_PRIMARY, font=(FONT_UI, 9))
         chk_notifications.pack(anchor="w", padx=20, pady=6)
 
+        var_animations = tk.BooleanVar(value=self.config.animations_enabled)
+        chk_animations = tk.Checkbutton(
+            win, text="Enable animations (experimental)", variable=var_animations, bg=COLOR_CARD,
+            fg=COLOR_TEXT_PRIMARY, selectcolor=COLOR_PANEL, activebackground=COLOR_CARD,
+            activeforeground=COLOR_TEXT_PRIMARY, font=(FONT_UI, 9))
+        chk_animations.pack(anchor="w", padx=20, pady=6)
+
         def save_and_close():
             new_target = var_ssid.get().strip() or "lab5g"
             self.config.target_ssid = new_target
@@ -784,6 +814,8 @@ class WifiACGuardianWinUI(tk.Tk):
             self.config.auto_start = var_auto_start.get()
             self.config.start_minimized = var_start_minimized.get()
             self.config.enable_notifications = var_notifications.get()
+            self.config.animations_enabled = var_animations.get()
+            animation.set_enabled(self.config.animations_enabled)
             try:
                 self.config.check_interval = max(2.0, min(120.0, float(setting_vars["check_interval"].get())))
                 self.config.reconnect_delay = max(1.0, min(60.0, float(setting_vars["reconnect_delay"].get())))
@@ -869,10 +901,28 @@ class WifiACGuardianWinUI(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
         self.after(2000, self._refresh_status)
 
+    def _set_hero_headline(self, text: str, accent: str) -> None:
+        """Set the hero status headline, cross-fading its color from the previous
+        state's accent when animations are enabled (T060). Text swaps instantly;
+        only the color eases, keeping the transition calm and ghost-free."""
+        self.lbl_hero_state.config(text=text, bg=COLOR_CARD)
+        prev = self._prev_hero_accent
+        self._prev_hero_accent = accent
+        if self._hero_anim is not None:
+            self._hero_anim.cancel()
+            self._hero_anim = None
+        if prev and prev != accent:
+            self._hero_anim = animation.animate(
+                self.lbl_hero_state,
+                lambda t: self.lbl_hero_state.config(fg=animation.lerp_color(prev, accent, t)),
+            )
+        else:
+            self.lbl_hero_state.config(fg=accent)
+
     def _update_ui(self, link: LinkInfo) -> None:
         if not self.guardian.state.running:
             self._set_router_status(StatusState.IDLE)
-            self.lbl_hero_state.config(text="PROTECTION STOPPED", fg=COLOR_TEXT_MUTED, bg=COLOR_CARD)
+            self._set_hero_headline("PROTECTION STOPPED", COLOR_TEXT_MUTED)
             self.hero_labels["status_val"].config(text="STOPPED", fg=COLOR_TEXT_MUTED)
             self.kpi_labels["status"].config(text="Stopped", fg=COLOR_TEXT_MUTED)
             self.engine_labels["interval"].config(text="Stopped")
@@ -892,7 +942,7 @@ class WifiACGuardianWinUI(tk.Tk):
 
         # Update hero and KPI from descriptor
         self._set_router_status(state)
-        self.lbl_hero_state.config(text=desc.headline, fg=desc.accent, bg=COLOR_CARD)
+        self._set_hero_headline(desc.headline, desc.accent)
         self.hero_labels["status_val"].config(text=state.value, fg=desc.accent)
         self.kpi_labels["status"].config(text=state.value.capitalize(), fg=desc.accent)
 
