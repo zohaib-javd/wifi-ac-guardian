@@ -103,8 +103,11 @@ function startPythonBackend() {
   }
 }
 
+// Set Windows App User Model ID for Taskbar Branding
+app.setAppUserModelId('com.wifiacguardian.app');
+
 function createWindow() {
-  const windowIconPath = path.join(__dirname, 'public', 'router.png');
+  const windowIconPath = path.join(__dirname, 'public', 'icon.ico');
 
   mainWindow = new BrowserWindow({
     width: 980,
