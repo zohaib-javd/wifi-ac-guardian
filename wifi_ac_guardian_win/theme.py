@@ -1,56 +1,54 @@
 """
 Design tokens for WiFi AC Guardian — the single source of truth for the visual
-language (color, type, spacing, radius) plus a WCAG contrast helper.
-
-Values are lifted verbatim from the original ``ui.py`` constants so that routing
-the UI through these tokens produces no visual change (feature 001, M1).
-
-`core/` must never import this module — it is presentation-only.
+language (color, type, spacing, radius) matching the exact specification.
 """
 
 from typing import Tuple
 
 # ---------------------------------------------------------------------------
-# Color tokens
+# Color tokens (EXACT SPECIFICATION)
 # ---------------------------------------------------------------------------
-# Surfaces (backgrounds, cards, panels, borders)
-BG = "#151515"               # Main dark background
-CARD = "#1E1E1E"             # Card surface background
-PANEL = "#252525"            # Secondary panel background
-BORDER = "#323232"           # Soft border
+BG = "#0D0F10"               # Main dark background (#0D0F10)
+SURFACE = "#16181A"          # Surface / Card (#16181A)
+CARD = "#16181A"             # Card surface (#16181A)
+ELEVATED = "#1E2124"         # Surface Elevated (#1E2124)
+PANEL = "#1E2124"            # Panel surface (#1E2124)
+BORDER = "#2A2F33"           # Border / Divider (#2A2F33)
 
-# Semantic accents, each with a paired subtle background
-ACCENT = "#24C26A"           # Primary accent (emerald green) — GOOD / protected
-ACCENT_BG = "#1A2F22"
-WARN = "#F4B740"             # Warning (amber) — restoring / retrying
-WARN_BG = "#2E2616"
-ERROR = "#E74C3C"            # Error (red) — downgraded / disconnected
+PRIMARY_GREEN = "#22C55E"    # Primary Green (#22C55E)
+ACCENT = "#22C55E"           # Primary accent (#22C55E)
+GLOW_GREEN = "#22C55E"       # Green Glow (#22C55E 30% opacity)
+
+ACCENT_BG = "#16281E"
+WARN = "#F59E0B"             # Amber Warning (#F59E0B)
+WARN_BG = "#2E2416"
+ERROR = "#EF4444"            # Error Red (#EF4444)
 ERROR_BG = "#2E1818"
-INFO = "#3B82F6"             # Information (blue) — standby / idle
+INFO = "#3B82F6"             # Information Blue (#3B82F6)
 INFO_BG = "#182438"
 
 # Text ramp (3 levels)
-TEXT_PRIMARY = "#FFFFFF"     # High-contrast white
-TEXT_SECONDARY = "#B6B6B6"   # Readable secondary text
-TEXT_MUTED = "#8C8C8C"       # De-emphasized captions/labels (WCAG-AA on all surfaces; F-13/T011)
+TEXT_PRIMARY = "#F2F4F7"     # High-contrast white (#F2F4F7)
+TEXT_SECONDARY = "#A1A7AE"   # Secondary text (#A1A7AE)
+TEXT_MUTED = "#8C92A0"       # De-emphasized captions (#8C92A0)
 
-# Accent foreground ink (text drawn on top of a filled accent surface)
-ON_ACCENT = "#0A1C11"        # Ink on emerald accent (buttons)
+# Accent foreground ink
+ON_ACCENT = "#051D0D"        # Ink on primary green accent
 ON_ERROR = "#FFFFFF"         # Ink on red accent
 ON_WARN = "#121212"          # Ink on amber accent
 
-# Interaction states — hover fills
-ACCENT_HOVER = "#2AE07B"     # Emerald button hover
-ERROR_HOVER = "#FF6255"      # Red button hover
-PANEL_HOVER = "#303030"      # Neutral panel button hover
-FOCUS_RING = "#FFFFFF"       # Keyboard focus outline drawn inset on the button fill (FR-018/FR-019; T050)
+# Interaction states
+ACCENT_HOVER = "#2BE06B"     # Green button hover
+ERROR_HOVER = "#F87171"      # Red button hover
+PANEL_HOVER = "#252A2F"      # Neutral pill hover (#252A2F)
+FOCUS_RING = "#22C55E"       # Keyboard focus outline (#22C55E)
 
-# Speed-bar zone colors (bitrate quality meter)
-TRACK = "#333333"            # Empty track behind the segmented bar
-ZONE_RED = "#E74C3C"         # 0–200 Mbps zone
-ZONE_ORANGE = "#F39C12"      # 200–300 Mbps zone + threshold caption
-ZONE_GREEN = "#2ECC71"       # 300+ Mbps zone
-SCALE_LABEL = "#BBBBBB"      # Scale end labels (0 / max Mbps)
+# Speed-bar zone colors
+TRACK = "#2A2F33"            # Track Background (#2A2F33)
+ZONE_RED = "#EF4444"         # 0–200 Mbps (#EF4444)
+ZONE_ORANGE = "#F59E0B"      # 200–300 Mbps (#F59E0B)
+ZONE_GREEN = "#22C55E"       # 300–1000 Mbps (#22C55E)
+SCALE_LABEL = "#6B7280"      # Scale end labels (#6B7280)
 
 # ---------------------------------------------------------------------------
 # Typography tokens
@@ -59,59 +57,19 @@ FONT_UI = "Segoe UI Variable"
 FONT_DISPLAY = "Segoe UI Variable Display"
 FONT_MONO = "Cascadia Mono"
 
-# Type ramp: (family, size, weight) — named by role.
-TYPE_DISPLAY = (FONT_DISPLAY, 19, "bold")   # App title
-TYPE_TITLE = (FONT_UI, 12, "bold")          # Dialog / section title
-TYPE_SECTION = (FONT_UI, 10, "bold")        # Section header
-TYPE_HERO = (FONT_UI, 11, "bold")           # Hero status headline
-TYPE_BODY = (FONT_UI, 9)                     # Body text
-TYPE_CAPTION = (FONT_UI, 8)                  # Caption / helper text
-TYPE_LABEL = (FONT_UI, 7, "bold")            # Uppercase KPI/field labels
-TYPE_SUBTITLE = (FONT_UI, 9)                 # Header subtitle
-TYPE_MONO = (FONT_MONO, 9, "bold")           # Metric values (mono)
-TYPE_MONO_SM = (FONT_MONO, 8, "bold")        # Small metric values (mono)
-TYPE_BUTTON = (FONT_UI, 9, "bold")           # Primary button label
-TYPE_BUTTON_SM = (FONT_UI, 8, "bold")        # Toolbar button label
 
-# ---------------------------------------------------------------------------
-# Spacing & radius scales
-# ---------------------------------------------------------------------------
-# Spacing scale (px)
-SPACE_XS = 3
-SPACE_SM = 6
-SPACE_MD = 12
-SPACE_LG = 18
-SPACE_XL = 24
-SPACE_2XL = 28
+def contrast_ratio(hex1: str, hex2: str) -> float:
+    """Calculates WCAG 2.1 relative luminance contrast ratio between two hex colors."""
+    def luminance(hex_col: str) -> float:
+        hex_col = hex_col.lstrip("#")
+        r, g, b = [int(hex_col[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
+        def srgb(c: float) -> float:
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b)
 
-# Radius scale (px)
-RADIUS_SM = 10
-RADIUS_MD = 12
-RADIUS_LG = 14
-RADIUS_XL = 16
-
-
-# ---------------------------------------------------------------------------
-# Contrast helper (WCAG 2.1 relative luminance / contrast ratio)
-# ---------------------------------------------------------------------------
-def _hex_to_rgb(color: str) -> Tuple[int, int, int]:
-    color = color.lstrip("#")
-    return tuple(int(color[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def _relative_luminance(color: str) -> float:
-    """WCAG 2.1 relative luminance of an sRGB hex color."""
-    def _channel(c: int) -> float:
-        srgb = c / 255.0
-        return srgb / 12.92 if srgb <= 0.03928 else ((srgb + 0.055) / 1.055) ** 2.4
-
-    r, g, b = _hex_to_rgb(color)
-    return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
-
-
-def contrast_ratio(fg: str, bg: str) -> float:
-    """Return the WCAG contrast ratio (1.0–21.0) between two hex colors."""
-    l1 = _relative_luminance(fg)
-    l2 = _relative_luminance(bg)
+    l1, l2 = luminance(hex1), luminance(hex2)
     lighter, darker = max(l1, l2), min(l1, l2)
     return (lighter + 0.05) / (darker + 0.05)
+
+
+wcag_contrast_ratio = contrast_ratio
