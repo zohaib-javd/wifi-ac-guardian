@@ -269,6 +269,40 @@ output for consistency (Principle VIII).
 
 ---
 
+## D-013 — Rely on Tk Native DPI Scaling; Defer `SetProcessDpiAwareness` and Live Scale Verification
+
+**Date**: 2026-08-06  
+**Status**: Accepted — implemented in feature 001, M5 (T052)
+
+**Decision**: No `SetProcessDpiAwareness` / `SetProcessDPIAware` call is added in M5. The app relies on
+Tk's built-in Windows DPI font/geometry scaling. The 100–200% scaling verification (SC-007) is
+performed as an informal visual check on a real desktop session and its per-scale results are recorded
+in `docs/DESIGN_SYSTEM.md`; a DPI-awareness call will be added only if that check surfaces a concrete
+legibility or clipping defect.
+
+**Reason**: The task T052 acceptance is explicitly "SC-007 recorded for each scale" with a DPI call
+added "only if needed and safe (no invariant impact)". The full UI cannot run in the non-interactive
+shell (it binds the live monitoring thread and the single-instance socket), so automated headless
+scale testing is not possible here. Forcing per-monitor DPI awareness changes how Windows composites
+and positions the top-level window and the tray — areas covered by the four architecture invariants —
+so making that change speculatively (with no observed defect) violates D-003 (presentation-only, no
+behavioral change without cause) and risks a regression in a known-good window/tray path.
+
+**Alternatives considered**:
+- Add `ctypes.windll.shcore.SetProcessDpiAwareness(...)` now — rejected; speculative behavioral change
+  to window/tray compositing with no observed defect, against D-003 and the invariant boundary
+- Claim SC-007 as met without a real check — rejected; dishonest, and no headless path exists to verify
+- Block M5 on the desktop check — rejected; keyboard operability (T050) and documentation (T053) are
+  independently complete and verifiable now; the scale check is a discrete, clearly-tracked follow-up
+
+**Consequences**: `docs/DESIGN_SYSTEM.md` carries a per-scale results table with rows marked
+"pending desktop check". M5 ships keyboard accessibility (T050/T051) and the design-system doc
+(T053) as complete; SC-007 remains open until the user runs the 100/125/150/175/200% visual pass on
+their desktop. No production code was changed for DPI. Serves Principle VII (Accessibility) while
+honoring D-003 and the architecture invariants.
+
+---
+
 ## Decision Template
 
 ```markdown

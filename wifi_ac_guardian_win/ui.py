@@ -52,6 +52,7 @@ COLOR_TEXT_MUTED = theme.TEXT_MUTED
 COLOR_ACCENT_HOVER = theme.ACCENT_HOVER
 COLOR_ERROR_HOVER = theme.ERROR_HOVER
 COLOR_PANEL_HOVER = theme.PANEL_HOVER
+COLOR_FOCUS_RING = theme.FOCUS_RING
 
 # Speed-bar tokens
 COLOR_TRACK = theme.TRACK
@@ -282,7 +283,7 @@ class RoundedButton(tk.Canvas):
                  height: int = 40, radius: int = 10, activebackground: Optional[str] = None,
                  activeforeground: Optional[str] = None, **kwargs):
         super().__init__(master, bg=master.cget("bg"), height=height, highlightthickness=0, bd=0,
-                         cursor=kwargs.pop("cursor", "hand2"))
+                         takefocus=1, cursor=kwargs.pop("cursor", "hand2"))
         self._text = text
         self._command = command
         self._fill = bg
@@ -295,10 +296,23 @@ class RoundedButton(tk.Canvas):
         self._active_fg = activeforeground or fg
         self._state = "normal"
         self._hovered = False
+        self._focused = False
         self.bind("<Configure>", lambda _event: self._draw())
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Button-1>", self._on_click)
+        self.bind("<FocusIn>", self._on_focus_in)
+        self.bind("<FocusOut>", self._on_focus_out)
+        self.bind("<Return>", self._on_click)
+        self.bind("<space>", self._on_click)
+
+    def _on_focus_in(self, _event=None) -> None:
+        self._focused = True
+        self._draw()
+
+    def _on_focus_out(self, _event=None) -> None:
+        self._focused = False
+        self._draw()
 
     def _on_enter(self, _event=None) -> None:
         if self._state == "normal":
@@ -311,6 +325,7 @@ class RoundedButton(tk.Canvas):
 
     def _on_click(self, _event=None) -> None:
         if self._state == "normal" and self._command:
+            self.focus_set()
             self._command()
 
     def _draw(self) -> None:
@@ -336,6 +351,23 @@ class RoundedButton(tk.Canvas):
             self.create_image(start_x + image_width // 2, height // 2, image=self._image)
         self.create_text(start_x + image_width + gap, height // 2, anchor="w", text=self._text,
                          fill=fg, font=self._font)
+        if self._focused and self._state == "normal":
+            self._draw_focus_ring(width, height, radius)
+
+    def _draw_focus_ring(self, width: int, height: int, radius: int) -> None:
+        """Inset rounded outline shown while the button holds keyboard focus (T050)."""
+        pad = 3
+        x0, y0, x1, y1 = pad, pad, width - pad - 1, height - pad - 1
+        r = max(0, min(radius, (y1 - y0) // 2, (x1 - x0) // 2))
+        ring = COLOR_FOCUS_RING
+        self.create_arc(x0, y0, x0 + 2 * r, y0 + 2 * r, start=90, extent=90, style="arc", outline=ring, width=2)
+        self.create_arc(x1 - 2 * r, y0, x1, y0 + 2 * r, start=0, extent=90, style="arc", outline=ring, width=2)
+        self.create_arc(x1 - 2 * r, y1 - 2 * r, x1, y1, start=270, extent=90, style="arc", outline=ring, width=2)
+        self.create_arc(x0, y1 - 2 * r, x0 + 2 * r, y1, start=180, extent=90, style="arc", outline=ring, width=2)
+        self.create_line(x0 + r, y0, x1 - r, y0, fill=ring, width=2)
+        self.create_line(x0 + r, y1, x1 - r, y1, fill=ring, width=2)
+        self.create_line(x0, y0 + r, x0, y1 - r, fill=ring, width=2)
+        self.create_line(x1, y0 + r, x1, y1 - r, fill=ring, width=2)
 
     def config(self, cnf=None, **kwargs):
         options = dict(cnf or {})

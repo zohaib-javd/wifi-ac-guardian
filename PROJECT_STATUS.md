@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-08-06  
 **Version**: 1.0.0  
-**Status**: Active Development — Feature 001 implementation in progress (M4 complete)
+**Status**: Active Development — Feature 001 implementation in progress (M5 complete)
 
 ---
 
@@ -39,7 +39,7 @@
 
 **Active Work**: `001-premium-ui-design-system` — Premium UI & Design System (v1.1.0 first feature).
 
-**Status**: Implementation in progress — M0 ✅, M1 ✅, M2 ✅, M3 ✅, M4 ✅.
+**Status**: Implementation in progress — M0 ✅, M1 ✅, M2 ✅, M3 ✅, M4 ✅, M5 ✅.
 
 **Completed Milestones**:
 - [x] M0 — Baseline & Safety Net (T001 visual parity, literal count, test suite baseline)
@@ -47,6 +47,7 @@
 - [x] M2 — Status Presentation Descriptor (T020 descriptor module, T021 descriptor tests, T022 ui.py routing, T023 tray/notifier routing)
 - [x] M3 — Component & Hierarchy Pass (T030 components on tokens / zero color literals in draw code, T031 hero-first order, T032 config-derived defaults + D-012, T033 dead-code removal: LineIcon, _open_advanced_dialog, tray helpers)
 - [x] M4 — Terminology (T040 "Upload/Download link speed" in GUI KPI cards, T041 CLI `--status` "Link Speed:" relabel + tray parity via descriptor; D-010 Accepted, SC-005 met)
+- [x] M5 — Accessibility & DPI (T050 focusable/operable RoundedButton with focus ring + Enter/Space, T051 logical tab order reconnect→protection→settings→log→about, T052 DPI verification framework + desktop-check deferral, T053 `docs/DESIGN_SYSTEM.md`; SC-003/SC-004 met, SC-007 pending desktop check)
 
 **Artifacts produced** (all under `specs/001-premium-ui-design-system/`):
 - [x] `spec.md` — 5 user stories, FR-001…FR-028, SC-001…SC-008, 11 clarifications
@@ -54,7 +55,7 @@
 - [x] `tasks.md` — T001…T062 across M0–M6, each with acceptance criteria and complexity
 - [x] `analysis.md` — repository analysis (F-01…F-18) + cross-artifact consistency check
 
-**Next Milestone**: M5 — Accessibility & DPI (focus traversal, keyboard operability, DPI-aware scaling per FR-020…FR-024).
+**Next Milestone**: M6 — Animation (US5, P3, optional and budget-gated: T060 status-transition cross-fade, T061 speed-bar ease; any animation missing its perf budget ships disabled per FR-016).
 
 ---
 

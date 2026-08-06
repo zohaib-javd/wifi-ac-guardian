@@ -58,14 +58,31 @@ Permanent engineering journal. Every AI work session appends one entry.
   internal log lines in `guardian.py`/`reconnector_win.py`). Promoted **D-010** to Accepted —
   implemented. SC-005 (zero TX/RX strings user-facing) met across GUI, CLI, and tray.
 - **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M4 close.
+- **M5 — Accessibility & DPI**: Made `RoundedButton` keyboard-operable (T050) — added `takefocus=1`,
+  `<FocusIn>/<FocusOut>` handlers, an inset `FOCUS_RING` (new `#FFFFFF` token in `theme.py`) drawn
+  via a rounded outline in `_draw`, and `<Return>`/`<space>` bindings that invoke the command
+  (mouse click now also `focus_set()`s). Verified with a bounded headless probe on a bare button
+  (not the full UI, so the guardian/socket never start): `takefocus=1`, focus acquired, ring flag
+  set, command fired on both Enter and Space. Confirmed the dashboard tab order is already the
+  target **Reconnect → Stop/Start protection → Settings → View Log → About** (Tk traversal follows
+  creation order; the toolbar is created after the engine buttons) and that decorative canvases
+  (`SegmentedSpeedBar`, card backdrops — `<Configure>`-only, no key bindings) are excluded by Tk's
+  focus heuristic (T051, SC-003 — no code change needed). Authored `docs/DESIGN_SYSTEM.md` (T053)
+  documenting every token, the type/spacing/radius ramps, component states, and the **measured**
+  WCAG-AA contrast ratios (SC-004). DPI/scaling verification (T052/SC-007) framed with a per-scale
+  results table but deferred to a real desktop session — the full UI can't run headless, and no Tk
+  DPI-awareness call was added to avoid disturbing the window/tray invariants unless a concrete
+  defect is found. Recorded the DPI deferral as **D-013**.
+- **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M5 close.
 
 ### Files Modified
 
-- `wifi_ac_guardian_win/theme.py` (created)
+- `wifi_ac_guardian_win/theme.py` (created; M5 added FOCUS_RING token)
 - `wifi_ac_guardian_win/status_presentation.py` (created)
 - `tests/test_theme.py` (created)
 - `tests/test_status_presentation.py` (created)
-- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing + KPI relabel)
+- `docs/DESIGN_SYSTEM.md` (created — M5/T053)
+- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing + KPI relabel + focusable button)
 - `wifi_ac_guardian_win/cli.py` (modified — `--status` "Link Speed:" relabel)
 - `wifi_ac_guardian_win/tray.py` (modified — tooltip via descriptor; dead helpers removed)
 - `wifi_ac_guardian_win/core/notifier_win.py` (modified — toast text via descriptor)

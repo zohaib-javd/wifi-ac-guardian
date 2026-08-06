@@ -43,6 +43,7 @@ ON_WARN = "#121212"          # Ink on amber accent
 ACCENT_HOVER = "#2AE07B"     # Emerald button hover
 ERROR_HOVER = "#FF6255"      # Red button hover
 PANEL_HOVER = "#303030"      # Neutral panel button hover
+FOCUS_RING = "#FFFFFF"       # Keyboard focus outline drawn inset on the button fill (FR-018/FR-019; T050)
 
 # Speed-bar zone colors (bitrate quality meter)
 TRACK = "#333333"            # Empty track behind the segmented bar
