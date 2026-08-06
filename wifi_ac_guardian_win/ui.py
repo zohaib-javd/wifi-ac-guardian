@@ -25,27 +25,32 @@ from wifi_ac_guardian_win.logger import get_logger
 logger = get_logger()
 
 # --- DESIGN SYSTEM TOKENS ---
-COLOR_BG = "#151515"               # Main Dark Background
-COLOR_CARD = "#1E1E1E"             # Card Surface Background
-COLOR_PANEL = "#252525"            # Secondary Panel Background
-COLOR_BORDER = "#323232"           # Soft Border
+# The visual language now lives in theme.py (single source of truth, feature 001).
+# The COLOR_*/FONT_* names below are thin aliases so existing layout code is
+# unchanged; edit values in theme.py, not here.
+from wifi_ac_guardian_win import theme
 
-COLOR_ACCENT = "#24C26A"           # Primary Accent (Emerald Green)
-COLOR_ACCENT_BG = "#1A2F22"
-COLOR_WARN = "#F4B740"             # Warning (Amber Orange)
-COLOR_WARN_BG = "#2E2616"
-COLOR_ERROR = "#E74C3C"            # Error Red
-COLOR_ERROR_BG = "#2E1818"
-COLOR_INFO = "#3B82F6"             # Information Blue
-COLOR_INFO_BG = "#182438"
+COLOR_BG = theme.BG                       # Main Dark Background
+COLOR_CARD = theme.CARD                   # Card Surface Background
+COLOR_PANEL = theme.PANEL                 # Secondary Panel Background
+COLOR_BORDER = theme.BORDER               # Soft Border
 
-COLOR_TEXT_PRIMARY = "#FFFFFF"     # High-contrast white
-COLOR_TEXT_SECONDARY = "#B6B6B6"   # Readable secondary text
-COLOR_TEXT_MUTED = "#666666"
+COLOR_ACCENT = theme.ACCENT               # Primary Accent (Emerald Green)
+COLOR_ACCENT_BG = theme.ACCENT_BG
+COLOR_WARN = theme.WARN                   # Warning (Amber Orange)
+COLOR_WARN_BG = theme.WARN_BG
+COLOR_ERROR = theme.ERROR                 # Error Red
+COLOR_ERROR_BG = theme.ERROR_BG
+COLOR_INFO = theme.INFO                   # Information Blue
+COLOR_INFO_BG = theme.INFO_BG
 
-FONT_UI = "Segoe UI Variable"
-FONT_DISPLAY = "Segoe UI Variable Display"
-FONT_MONO = "Cascadia Mono"
+COLOR_TEXT_PRIMARY = theme.TEXT_PRIMARY   # High-contrast white
+COLOR_TEXT_SECONDARY = theme.TEXT_SECONDARY  # Readable secondary text
+COLOR_TEXT_MUTED = theme.TEXT_MUTED
+
+FONT_UI = theme.FONT_UI
+FONT_DISPLAY = theme.FONT_DISPLAY
+FONT_MONO = theme.FONT_MONO
 
 FLUENT_ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "fluent")
 FLUENT_ASSETS = {
