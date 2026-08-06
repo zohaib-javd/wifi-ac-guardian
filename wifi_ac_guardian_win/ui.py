@@ -526,6 +526,9 @@ class WifiACGuardianWinUI(tk.Tk):
             self._fluent_images[cache_key] = ImageTk.PhotoImage(canvas)
         return self._fluent_images[cache_key]
 
+    def _fluent_icon(self, parent, name: str, size: int, bg: str):
+        return tk.Label(parent, image=self._fluent_image(name, size), bg=bg, bd=0, highlightthickness=0)
+
     def add_event_log(self, icon_type: str, message: str) -> None:
         logger.info(message)
 
