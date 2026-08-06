@@ -1,11 +1,66 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const http = require('http');
 const { spawn } = require('child_process');
 
 let mainWindow = null;
 let tray = null;
 let pythonProcess = null;
+let staticServer = null;
 let isQuitting = false;
+
+const STATIC_PORT = 39147;
+
+const mimeTypes = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+// Start Built-in Node Static Server for Next.js App
+function startStaticServer() {
+  const outDir = path.join(__dirname, 'out');
+  staticServer = http.createServer((req, res) => {
+    let reqPath = req.url.split('?')[0];
+    let filePath = path.join(outDir, reqPath);
+
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(filePath, 'index.html');
+    }
+
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        fs.readFile(path.join(outDir, 'index.html'), (err2, fallbackData) => {
+          if (err2) {
+            res.writeHead(404);
+            res.end('Not Found');
+          } else {
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(fallbackData);
+          }
+        });
+      } else {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(data);
+      }
+    });
+  });
+
+  staticServer.listen(STATIC_PORT, '127.0.0.1', () => {
+    console.log(`[Electron] Static UI server running on http://127.0.0.1:${STATIC_PORT}`);
+  });
+}
 
 // Spawn Python Guardian Engine in background
 function startPythonBackend() {
@@ -39,19 +94,13 @@ function createWindow() {
     },
   });
 
-  // Load Next.js production build or dev server
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
-  } else {
-    mainWindow.loadFile(path.join(__dirname, 'out', 'index.html'));
-  }
+  // Load from local static server
+  mainWindow.loadURL(`http://127.0.0.1:${STATIC_PORT}`);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
 
-  // Minimize to System Tray on Close
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();
@@ -111,6 +160,11 @@ function createSystemTray() {
             pythonProcess.kill();
           } catch (e) {}
         }
+        if (staticServer) {
+          try {
+            staticServer.close();
+          } catch (e) {}
+        }
         app.quit();
       },
     },
@@ -126,6 +180,7 @@ function createSystemTray() {
 }
 
 app.whenReady().then(() => {
+  startStaticServer();
   startPythonBackend();
   createWindow();
   createSystemTray();
@@ -145,6 +200,11 @@ app.on('will-quit', () => {
   if (pythonProcess) {
     try {
       pythonProcess.kill();
+    } catch (e) {}
+  }
+  if (staticServer) {
+    try {
+      staticServer.close();
     } catch (e) {}
   }
 });
