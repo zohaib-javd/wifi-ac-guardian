@@ -1,6 +1,6 @@
 """
 Tkinter Control Panel GUI for WiFi AC Guardian (Windows 11 & Ubuntu).
-Commercial PowerToys-inspired desktop design system (900x720) with SegmentedSpeedBar Bitrate Meter.
+Commercial Microsoft Windows 11 Fluent Product Design System (900x720) with SegmentedSpeedBar Bitrate Meter.
 """
 
 import os
@@ -25,17 +25,17 @@ from wifi_ac_guardian_win import animation
 
 logger = get_logger()
 
-# --- DESIGN SYSTEM TOKENS ---
+# --- WINDOWS 11 FLUENT DESIGN SYSTEM TOKENS ---
 from wifi_ac_guardian_win import theme
 
-COLOR_BG = theme.BG                       # Main Dark Background (#151515)
+COLOR_BG = theme.BG                       # Window Dark Background (#151515)
 COLOR_CARD = theme.CARD                   # Card Surface Background (#1E1E1E)
-COLOR_PANEL = theme.PANEL                 # Secondary Panel Background (#252525)
-COLOR_BORDER = theme.BORDER               # Soft Border (#323232)
+COLOR_PANEL = theme.PANEL                 # Secondary Panel Surface (#252525)
+COLOR_BORDER = theme.BORDER               # Soft Border Outline (#323232)
 
-COLOR_ACCENT = theme.ACCENT               # Primary Accent Emerald (#24C26A)
+COLOR_ACCENT = theme.ACCENT               # Emerald Green Accent (#24C26A)
 COLOR_ACCENT_BG = theme.ACCENT_BG
-COLOR_WARN = theme.WARN                   # Warning Amber (#F4B740)
+COLOR_WARN = theme.WARN                   # Amber Orange Warning (#F4B740)
 COLOR_WARN_BG = theme.WARN_BG
 COLOR_ERROR = theme.ERROR                 # Error Red (#E74C3C)
 COLOR_ERROR_BG = theme.ERROR_BG
@@ -330,7 +330,7 @@ class RoundedButton(tk.Canvas):
 
 
 class WifiACGuardianWinUI(tk.Tk):
-    """Commercial PowerToys-inspired desktop control panel for WiFi AC Guardian."""
+    """Commercial Microsoft Windows 11 Fluent Product Design System for WiFi AC Guardian."""
 
     def __init__(self, config: Optional[GuardianConfig] = None, guardian: Optional[WifiACGuardianWin] = None):
         super().__init__()
@@ -425,7 +425,7 @@ class WifiACGuardianWinUI(tk.Tk):
         sys.exit(0)
 
     def _build_ui(self) -> None:
-        """Build the commercial PowerToys-inspired desktop layout."""
+        """Build the commercial Microsoft Windows 11 Fluent Product Layout."""
         # Top Header Bar
         header = tk.Frame(self, bg=COLOR_BG)
         header.pack(fill="x", padx=28, pady=(20, 14))
