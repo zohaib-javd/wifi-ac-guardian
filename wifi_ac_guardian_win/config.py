@@ -71,6 +71,9 @@ def sync_desktop_shortcut() -> None:
     """Create the desktop shortcut with the bundled Fluent shield icon."""
     desktop_path = os.path.join(os.path.expanduser("~"), "Desktop", "WiFi AC Guardian.lnk")
     _write_shortcut(desktop_path, "-m wifi_ac_guardian_win --gui", "WiFi AC Guardian")
+    apps_shortcuts = os.path.join(os.path.expanduser("~"), "Desktop", "Apps Shortcuts")
+    if os.path.isdir(apps_shortcuts):
+        _write_shortcut(os.path.join(apps_shortcuts, "WiFi AC Guardian.lnk"), "-m wifi_ac_guardian_win --gui", "WiFi AC Guardian")
 
 
 def load_config(config_path: Optional[str] = None) -> GuardianConfig:
@@ -96,7 +99,7 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
                 reconnect_delay=float(data.get("reconnect_delay", 15.0)),
                 max_attempts=int(data.get("max_attempts", 99)),
                 log_file_path=data.get("log_file_path", os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")),
-                enable_notifications=False,
+                enable_notifications=bool(data.get("enable_notifications", False)),
                 enable_tray=bool(data.get("enable_tray", True)),
                 start_minimized=bool(data.get("start_minimized", False)),
                 is_paused=bool(data.get("is_paused", False)),
@@ -121,7 +124,7 @@ def save_config(config: GuardianConfig, config_path: Optional[str] = None) -> st
         "reconnect_delay": config.reconnect_delay,
         "max_attempts": config.max_attempts,
         "log_file_path": config.log_file_path,
-        "enable_notifications": False,
+        "enable_notifications": config.enable_notifications,
         "enable_tray": config.enable_tray,
         "start_minimized": config.start_minimized,
         "is_paused": config.is_paused,

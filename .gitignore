@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ---------------------------------------------------------------------------
+# Testing / coverage
+# ---------------------------------------------------------------------------
+.pytest_cache/
+.cache/
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+nosetests.xml
+
+# ---------------------------------------------------------------------------
+# Type checkers / linters
+# ---------------------------------------------------------------------------
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Virtual environments
+# ---------------------------------------------------------------------------
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ---------------------------------------------------------------------------
+# Secrets — never commit credentials (see docs/GITHUB_SETUP.md)
+# ---------------------------------------------------------------------------
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# ---------------------------------------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------------------------------------
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+
+# ---------------------------------------------------------------------------
+# Application runtime artifacts
+# ---------------------------------------------------------------------------
+# Guardian writes its log to %USERPROFILE%, but catch any stray local copies.
+wifi_ac_guardian_win.log
+*.log
+
+# User configuration lives in %APPDATA%\wifi-ac-guardian\config.json.
+# A local config.json in the repo would be a personal machine's settings.
+/config.json
+
+# ---------------------------------------------------------------------------
+# OS / misc
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes

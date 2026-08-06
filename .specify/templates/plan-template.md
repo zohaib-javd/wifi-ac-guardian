@@ -31,7 +31,25 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Verify against `.specify/memory/constitution.md` (v1.0.0):
+
+- [ ] **I. User First** — Every screen answers: Am I protected? Is everything healthy? What next?
+- [ ] **II. Zero Feature Regression** — No existing functionality removed without explicit approval
+- [ ] **III. Premium Desktop Experience** — Matches PowerToys / Docker Desktop / Windows 11 polish
+- [ ] **IV. Beautiful Simplicity** — No clutter; consistent spacing, typography, iconography
+- [ ] **V. Professional Engineering** — Spec exists before implementation; small commits planned
+- [ ] **VI. Performance First** — No unnecessary redraws; reusable assets cached
+- [ ] **VII. Accessibility** — Readable fonts, high contrast, keyboard navigation, focus states
+- [ ] **VIII. Consistency** — Follows one design language across all components
+- [ ] **IX. Reliability** — Protection remains dependable and visibly trustworthy
+- [ ] **X. Code Quality** — Minimal duplication; UI and business logic separated
+
+Architecture invariants (non-negotiable):
+
+- [ ] Single-instance enforcement preserved (`SingleInstanceChecker`)
+- [ ] All subprocess calls pass `CREATE_NO_WINDOW`
+- [ ] Background-thread Tkinter updates dispatched via `widget.after(0, ...)`
+- [ ] Tray icon reassigned only on state change
 
 ## Project Structure
 
