@@ -211,7 +211,7 @@ future roadmap item, not a current requirement.
 ## D-010 — Terminology: "Upload / Download Link Speed" over "TX / RX Rate"
 
 **Date**: 2026-08-05  
-**Status**: Proposed — not yet implemented
+**Status**: Accepted — implemented in feature 001, M4
 
 **Decision**: User-facing labels should read "Upload Link Speed" and "Download Link Speed" instead
 of "TX Rate" and "RX Rate".
@@ -224,8 +224,7 @@ terminology that a non-technical user must translate; "Upload/Download" is immed
 - Show both ("Upload (TX)") — hedges, adds visual noise, contradicts Principle IV
 - Icons with arrows only — ambiguous without a legend
 
-**Current state**: `ui.py` still renders "TX Rate" and "RX Rate". The dashboard KPI cards and the
-Connection Overview panel both need updating.
+**Current state**: Implemented in M4. GUI KPI cards render "Upload link speed" / "Download link speed" (T040); the CLI `--status` "Bitrate:" line was relabeled "Link Speed:" for vocabulary consistency (T041). The tray tooltip already routed through the status descriptor (T023) and carries no TX/RX text. `ui_backup.py` retains the old labels but is a non-shipping backup (F-06).
 
 **Caveat worth noting**: These values are *link sync rates* negotiated with the router, not
 measured throughput. "Link Speed" in the label is doing important work — dropping it to plain

@@ -463,18 +463,19 @@ class WifiACGuardianWinUI(tk.Tk):
         main_box.pack(fill="both", expand=True, padx=24, pady=(0, 10))
 
         # --- Top metric cards: 2x2 grid ---
-        # Row0: Status | Retry State   Row1: TX Rate | RX Rate
+        # Row0: Status | Retry State   Row1: Upload Link Speed | Download Link Speed
         kpi_strip = tk.Frame(main_box, bg=COLOR_BG)
         kpi_strip.pack(fill="x", pady=(0, 12))
         kpi_strip.columnconfigure(0, weight=1, uniform="kpi")
         kpi_strip.columnconfigure(1, weight=1, uniform="kpi")
         self.kpi_labels = {}
         # Initial KPI values derive from config/state, not baked-in examples (feature 001, T032 - FR-015)
+        # "Upload/Download Link Speed" over "TX/RX rate" per D-010 (feature 001, T040)
         for row, col, key, icon, title, value in [
             (0, 0, "status", "shield", "Status", StatusState.IDLE.value.capitalize()),
             (0, 1, "retry", "history", "Retry state", f"0 / {self.config.max_attempts}"),
-            (1, 0, "tx", "bolt", "TX rate", "— Mbps"),
-            (1, 1, "rx", "bolt", "RX rate", "— Mbps"),
+            (1, 0, "tx", "bolt", "Upload link speed", "— Mbps"),
+            (1, 1, "rx", "bolt", "Download link speed", "— Mbps"),
         ]:
             card_shell = RoundedCard(kpi_strip, surface=COLOR_CARD, radius=12, inset=10)
             card_shell.grid(row=row, column=col, sticky="ew", padx=3, pady=3)

@@ -50,6 +50,14 @@ Permanent engineering journal. Every AI work session appends one entry.
   Headless GUI launch smoke-test deferred to the user's desktop (the guardian's live monitoring loop
   and single-instance socket do not run cleanly in this non-interactive shell); T031's acceptance is
   an informal human 3-second visual check.
+- **M4 — Terminology**: Renamed the GUI KPI cards "TX rate"/"RX rate" → "Upload link speed"/
+  "Download link speed" (T040, ui.py); relabeled the CLI `--status` "Bitrate:" line → "Link Speed:"
+  in both connected and disconnected branches (T041, cli.py). Tray tooltip already carries no TX/RX
+  (routed through the descriptor at T023). Verified via Grep that all remaining TX/RX/"Bitrate:"
+  strings are non-user-facing (the `ui_backup.py` non-shipping backup per F-06, one code comment, and
+  internal log lines in `guardian.py`/`reconnector_win.py`). Promoted **D-010** to Accepted —
+  implemented. SC-005 (zero TX/RX strings user-facing) met across GUI, CLI, and tray.
+- **Verification**: `compileall` clean; `pytest -q` → **17 passed / 40 subtests** at M4 close.
 
 ### Files Modified
 
@@ -57,10 +65,11 @@ Permanent engineering journal. Every AI work session appends one entry.
 - `wifi_ac_guardian_win/status_presentation.py` (created)
 - `tests/test_theme.py` (created)
 - `tests/test_status_presentation.py` (created)
-- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing)
+- `wifi_ac_guardian_win/ui.py` (modified — token aliasing + descriptor routing + KPI relabel)
+- `wifi_ac_guardian_win/cli.py` (modified — `--status` "Link Speed:" relabel)
 - `wifi_ac_guardian_win/tray.py` (modified — tooltip via descriptor; dead helpers removed)
 - `wifi_ac_guardian_win/core/notifier_win.py` (modified — toast text via descriptor)
-- `docs/DECISIONS.md` (D-011, D-012 appended)
+- `docs/DECISIONS.md` (D-010 Accepted, D-011, D-012 appended)
 - `PROJECT_STATUS.md`, `docs/SESSION_LOG.md` (memory sync)
 
 ### Problems Encountered
