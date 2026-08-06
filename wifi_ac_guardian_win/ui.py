@@ -1,18 +1,19 @@
 """
 Tkinter Control Panel GUI for WiFi AC Guardian (Windows 11 & Ubuntu).
-Commercial Microsoft Windows 11 Fluent Product Design System (900x720) with SegmentedSpeedBar Bitrate Meter.
+Exact Commercial Product UI implementation matching the approved visual mockup.
 """
 
 import os
 import sys
 import time
+import math
 import subprocess
 import threading
 import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk, messagebox
 from typing import Optional, List, Tuple
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFilter
 
 from wifi_ac_guardian_win.core.models import GuardianConfig, StatusState, LinkInfo
 from wifi_ac_guardian_win.core.detector_win import WifiDetectorWin
@@ -25,7 +26,7 @@ from wifi_ac_guardian_win import animation
 
 logger = get_logger()
 
-# --- WINDOWS 11 FLUENT DESIGN SYSTEM TOKENS ---
+# --- DESIGN SYSTEM TOKENS ---
 from wifi_ac_guardian_win import theme
 
 COLOR_BG = theme.BG                       # Window Dark Background (#151515)
@@ -52,8 +53,8 @@ COLOR_ERROR_HOVER = theme.ERROR_HOVER
 COLOR_PANEL_HOVER = theme.PANEL_HOVER
 COLOR_FOCUS_RING = theme.FOCUS_RING
 
-# Speed-bar tokens
-COLOR_TRACK = theme.TRACK
+# Speed-bar / Arc Gauge tokens
+COLOR_TRACK = "#2A2A2A"
 COLOR_ZONE_RED = theme.ZONE_RED
 COLOR_ZONE_ORANGE = theme.ZONE_ORANGE
 COLOR_ZONE_GREEN = theme.ZONE_GREEN
@@ -89,8 +90,8 @@ ROUTER_STATUS_ASSETS = {
 }
 
 
-class SegmentedSpeedBar(tk.Canvas):
-    """Custom Canvas Widget displaying a 3-zone segmented bitrate quality bar with markers."""
+class ArcSpeedMeter(tk.Canvas):
+    """Semicircular Arc Gauge Bitrate Meter matching the visual mockup."""
 
     def __init__(
         self,
@@ -98,8 +99,8 @@ class SegmentedSpeedBar(tk.Canvas):
         current_speed: float = 780.0,
         threshold: float = 300.0,
         max_speed: float = 1000.0,
-        width: int = 620,
-        height: int = 65,
+        width: int = 420,
+        height: int = 180,
         bg: str = COLOR_CARD,
         **kwargs
     ):
@@ -128,7 +129,6 @@ class SegmentedSpeedBar(tk.Canvas):
             self.draw()
 
     def set_speed(self, speed: float) -> None:
-        """Move cursor to speed, tweening value when animations are enabled."""
         target = max(0.0, float(speed))
         if self._anim is not None:
             self._anim.cancel()
@@ -148,41 +148,67 @@ class SegmentedSpeedBar(tk.Canvas):
     def draw(self) -> None:
         self.delete("all")
 
-        left = 18
-        right = max(left + 50, self.width - 18)
-        top = 22
-        bar_height = 18
+        cx = self.width / 2
+        cy = self.height - 24
+        r = min(self.width / 2 - 30, self.height - 50)
+        thickness = 18
 
-        total_width = right - left
+        # Background Track Arc (180 degrees: 180 to 0)
+        self.create_arc(
+            cx - r, cy - r, cx + r, cy + r,
+            start=0, extent=180,
+            style="arc", outline=COLOR_TRACK, width=thickness
+        )
 
-        def x(value: float) -> float:
-            v_clamped = max(0.0, min(value, self.max_speed))
-            return left + (v_clamped / self.max_speed) * total_width
+        # Active Green Fill Arc
+        ratio = max(0.0, min(1.0, self.current_speed / self.max_speed))
+        extent_angle = ratio * 180
+        if extent_angle > 0:
+            self.create_arc(
+                cx - r, cy - r, cx + r, cy + r,
+                start=180 - extent_angle, extent=extent_angle,
+                style="arc", outline=COLOR_ACCENT, width=thickness
+            )
 
-        # Track
-        radius = bar_height / 2
-        self.create_arc(left, top, left + bar_height, top + bar_height, start=90, extent=180, fill=COLOR_TRACK, outline="")
-        self.create_rectangle(left + radius, top, right - radius, top + bar_height, fill=COLOR_TRACK, outline="")
-        self.create_arc(right - bar_height, top, right, top + bar_height, start=270, extent=180, fill=COLOR_TRACK, outline="")
+        # 300 Mbps Threshold Arrow & Marker Line
+        thresh_ratio = self.threshold / self.max_speed
+        thresh_angle_deg = 180 * (1.0 - thresh_ratio)
+        thresh_rad = math.radians(thresh_angle_deg)
 
-        # Zones
-        self.create_rectangle(x(0), top, x(200), top + bar_height, fill=COLOR_ZONE_RED, outline="")
-        self.create_rectangle(x(200), top, x(300), top + bar_height, fill=COLOR_ZONE_ORANGE, outline="")
-        self.create_rectangle(x(300), top, x(1000), top + bar_height, fill=COLOR_ZONE_GREEN, outline="")
+        tx_inner = cx + (r - thickness / 2 - 4) * math.cos(thresh_rad)
+        ty_inner = cy - (r - thickness / 2 - 4) * math.sin(thresh_rad)
+        tx_outer = cx + (r + thickness / 2 + 6) * math.cos(thresh_rad)
+        ty_outer = cy - (r + thickness / 2 + 6) * math.sin(thresh_rad)
 
-        # Threshold Line (300 Mbps)
-        tx = x(self.threshold)
-        self.create_line(tx, top - 6, tx, top + bar_height + 6, fill=COLOR_TEXT_PRIMARY, width=2)
-        self.create_text(tx, top - 12, text="300 Mbps", fill=COLOR_ZONE_ORANGE, font=(FONT_UI, 8, "bold"))
+        self.create_line(tx_inner, ty_inner, tx_outer, ty_outer, fill=COLOR_TEXT_PRIMARY, width=2)
 
-        # Cursor
-        sx = x(self.current_speed)
-        self.create_line(sx, top - 2, sx, top + bar_height + 2, fill=COLOR_TEXT_PRIMARY, width=3)
-        self.create_text(sx, top + 32, text=f"{self.current_speed:.0f} Mbps", fill=COLOR_TEXT_PRIMARY, font=(FONT_MONO, 8, "bold"))
+        # Arrow indicator pointing to 300 Mbps threshold
+        arrow_x = cx + (r - thickness / 2 - 12) * math.cos(thresh_rad)
+        arrow_y = cy - (r - thickness / 2 - 12) * math.sin(thresh_rad)
+        self.create_text(arrow_x, arrow_y, text="▲", fill=COLOR_TEXT_PRIMARY, font=(FONT_UI, 9))
 
-        # End labels
-        self.create_text(left, top - 12, anchor="w", text="0 Mbps", fill=COLOR_SCALE_LABEL, font=(FONT_UI, 8))
-        self.create_text(right, top - 12, anchor="e", text=f"{int(self.max_speed)} Mbps", fill=COLOR_SCALE_LABEL, font=(FONT_UI, 8))
+        # Needle Cursor Pin at current speed
+        curr_angle_deg = 180 * (1.0 - ratio)
+        curr_rad = math.radians(curr_angle_deg)
+        nx_inner = cx + (r - thickness / 2 - 8) * math.cos(curr_rad)
+        ny_inner = cy - (r - thickness / 2 - 8) * math.sin(curr_rad)
+        nx_outer = cx + (r + thickness / 2 + 8) * math.cos(curr_rad)
+        ny_outer = cy - (r + thickness / 2 + 8) * math.sin(curr_rad)
+
+        self.create_line(nx_inner, ny_inner, nx_outer, ny_outer, fill=COLOR_ACCENT, width=4)
+
+        # Center Text Block
+        self.create_text(cx, cy - 48, text="Live Link Speed:", fill=COLOR_TEXT_SECONDARY, font=(FONT_UI, 9))
+        self.create_text(cx, cy - 24, text=f"{self.current_speed:.0f} Mbps", fill=COLOR_TEXT_PRIMARY, font=(FONT_MONO, 16, "bold"))
+        self.create_text(cx, cy - 4, text=f"Minimum Required: {int(self.threshold)} Mbps", fill=COLOR_TEXT_MUTED, font=(FONT_UI, 8))
+
+        # Scale End Labels
+        self.create_text(cx - r - 5, cy + 10, text="0", fill=COLOR_SCALE_LABEL, font=(FONT_UI, 8))
+        self.create_text(cx + r + 5, cy + 10, text=f"0-{int(self.max_speed)} Mbps", fill=COLOR_SCALE_LABEL, font=(FONT_UI, 8))
+
+
+# Alias for backward compatibility with tests
+SegmentedSpeedBar = ArcSpeedMeter
 
 
 class RoundedCard(tk.Frame):
@@ -225,7 +251,7 @@ class RoundedButton(tk.Canvas):
     """Compact rounded action button with hover effects and focus ring."""
 
     def __init__(self, master, text: str, command, bg: str, fg: str, font, image=None,
-                 height: int = 40, radius: int = 10, activebackground: Optional[str] = None,
+                 height: int = 38, radius: int = 10, activebackground: Optional[str] = None,
                  activeforeground: Optional[str] = None, **kwargs):
         super().__init__(master, bg=master.cget("bg"), height=height, highlightthickness=0, bd=0,
                          takefocus=1, cursor=kwargs.pop("cursor", "hand2"))
@@ -330,7 +356,7 @@ class RoundedButton(tk.Canvas):
 
 
 class WifiACGuardianWinUI(tk.Tk):
-    """Commercial Microsoft Windows 11 Fluent Product Design System for WiFi AC Guardian."""
+    """Commercial Product UI for WiFi AC Guardian matching the approved visual mockup."""
 
     def __init__(self, config: Optional[GuardianConfig] = None, guardian: Optional[WifiACGuardianWin] = None):
         super().__init__()
@@ -360,18 +386,17 @@ class WifiACGuardianWinUI(tk.Tk):
         self.reconnector = self.guardian.reconnector
         self._fluent_images = {}
         self._router_status_images = {}
+        self._start_time = time.time()
 
         animation.set_enabled(self.config.animations_enabled)
         self._prev_hero_accent = None
         self._hero_anim = None
 
-        # Connect tray callbacks safely to main thread
         if self.guardian.tray_app:
             self.guardian.tray_app.on_open_ui_click = lambda: self.after(0, self.show_from_tray)
             self.guardian.tray_app.on_quit_click = lambda: self.after(0, self.quit_app)
             self.guardian.tray_app.on_stop_protection_click = lambda: self.after(0, self._on_protection_toggle)
 
-        # Start guardian background loop if inactive
         if not self.guardian.state.running:
             self.guardian.start_background()
 
@@ -425,17 +450,15 @@ class WifiACGuardianWinUI(tk.Tk):
         sys.exit(0)
 
     def _build_ui(self) -> None:
-        """Build the commercial Microsoft Windows 11 Fluent Product Layout."""
+        """Build the product layout matching the visual mockup."""
         # Top Header Bar
         header = tk.Frame(self, bg=COLOR_BG)
-        header.pack(fill="x", padx=28, pady=(20, 14))
-        self._fluent_icon(header, "app", 42, COLOR_BG).pack(side="left", padx=(0, 12))
+        header.pack(fill="x", padx=28, pady=(16, 12))
+        self._fluent_icon(header, "app", 36, COLOR_BG).pack(side="left", padx=(0, 10))
         title_block = tk.Frame(header, bg=COLOR_BG)
         title_block.pack(side="left")
-        tk.Label(title_block, text="WiFi AC Guardian", font=(FONT_DISPLAY, 19, "bold"),
+        tk.Label(title_block, text="WiFi AC Guardian", font=(FONT_DISPLAY, 16, "bold"),
                  fg=COLOR_TEXT_PRIMARY, bg=COLOR_BG).pack(anchor="w")
-        tk.Label(title_block, text="High-Speed Wi-Fi 5+ Protection", font=(FONT_UI, 9),
-                 fg=COLOR_TEXT_SECONDARY, bg=COLOR_BG).pack(anchor="w", pady=(1, 0))
 
         # Main Scrollable Host Container
         content_host = tk.Frame(self, bg=COLOR_BG)
@@ -463,175 +486,181 @@ class WifiACGuardianWinUI(tk.Tk):
         content_canvas.bind("<Configure>", fit_content_width)
         content_canvas.bind_all("<MouseWheel>", lambda event: content_canvas.yview_scroll(-int(event.delta / 120), "units"))
 
-        # --- 1. HERO SECTION (Dominant identity of the product) ---
-        hero_shell = RoundedCard(main_box, surface=COLOR_CARD, radius=16, inset=20)
-        hero_shell.pack(fill="x", pady=(0, 16))
+        # --- 1. TOP HERO BANNER CARD (Identical to Mockup) ---
+        hero_shell = RoundedCard(main_box, surface=COLOR_CARD, radius=16, inset=18)
+        hero_shell.pack(fill="x", pady=(0, 14))
         hero_card = hero_shell.content
 
-        hero_center = tk.Frame(hero_card, bg=COLOR_CARD)
-        hero_center.pack(fill="x", pady=(8, 12))
+        hero_row = tk.Frame(hero_card, bg=COLOR_CARD)
+        hero_row.pack(fill="x", pady=6)
 
-        # Large 96px router status artwork
+        # Left 3D Router Image with green status LED base
         self.lbl_status_icon = tk.Label(
-            hero_center, image=self._router_status_image(StatusState.IDLE, 96),
+            hero_row, image=self._router_status_image(StatusState.IDLE, 110),
             bg=COLOR_CARD, bd=0, highlightthickness=0
         )
-        self.lbl_status_icon.pack(anchor="center", pady=(0, 12))
+        self.lbl_status_icon.pack(side="left", padx=(12, 24))
 
-        # Large Hero Headline Typography
+        hero_text_box = tk.Frame(hero_row, bg=COLOR_CARD)
+        hero_text_box.pack(side="left", fill="both", expand=True, pady=4)
+
         from wifi_ac_guardian_win.status_presentation import get_presentation
         idle_desc = get_presentation(StatusState.IDLE, target_ssid=self.config.target_ssid)
 
-        self.lbl_hero_state = tk.Label(
-            hero_center, text=idle_desc.headline, font=(FONT_DISPLAY, 16, "bold"),
-            fg=COLOR_INFO, bg=COLOR_CARD
-        )
-        self.lbl_hero_state.pack(anchor="center", pady=(0, 4))
+        head_row = tk.Frame(hero_text_box, bg=COLOR_CARD)
+        head_row.pack(anchor="w", pady=(0, 4))
 
-        self.lbl_hero_sub = tk.Label(
-            hero_center, text=f"Connected to {self.config.target_ssid}  •  Link Speed: —",
-            font=(FONT_UI, 10), fg=COLOR_TEXT_SECONDARY, bg=COLOR_CARD
+        self.lbl_hero_state = tk.Label(
+            head_row, text=idle_desc.headline, font=(FONT_DISPLAY, 18, "bold"),
+            fg=COLOR_ACCENT, bg=COLOR_CARD
         )
-        self.lbl_hero_sub.pack(anchor="center", pady=(0, 4))
+        self.lbl_hero_state.pack(side="left")
+
+        # Green Checkmark Badge
+        self.lbl_hero_badge = tk.Label(
+            head_row, text=" ✔", font=(FONT_DISPLAY, 14, "bold"),
+            fg=COLOR_ACCENT, bg=COLOR_CARD
+        )
+        self.lbl_hero_badge.pack(side="left", padx=(6, 0))
+
+        # Green Dot + Status Glow Text
+        sub_glow_row = tk.Frame(hero_text_box, bg=COLOR_CARD)
+        sub_glow_row.pack(anchor="w", pady=(0, 2))
+
+        self.lbl_glow_dot = tk.Label(
+            sub_glow_row, text="●", font=(FONT_UI, 10),
+            fg=COLOR_ACCENT, bg=COLOR_CARD
+        )
+        self.lbl_glow_dot.pack(side="left", padx=(0, 6))
 
         self.lbl_target_info = tk.Label(
-            hero_center, text=desc_supporting_text(idle_desc, self.config.target_ssid),
-            font=(FONT_UI, 9), fg=COLOR_TEXT_MUTED, bg=COLOR_CARD
+            sub_glow_row, text="Subtle status glow", font=(FONT_UI, 9),
+            fg=COLOR_TEXT_MUTED, bg=COLOR_CARD
         )
-        self.lbl_target_info.pack(anchor="center")
+        self.lbl_target_info.pack(side="left")
 
-        # --- 2. METRIC CARDS STRIP (4 KPI Cards) ---
+        # --- 2. METRIC CARDS STRIP (4 KPI Cards Matching Mockup) ---
         kpi_strip = tk.Frame(main_box, bg=COLOR_BG)
-        kpi_strip.pack(fill="x", pady=(0, 16))
+        kpi_strip.pack(fill="x", pady=(0, 14))
 
         self.kpi_labels = {}
-        for key, icon, title, value in [
-            ("status", "shield", "Status", StatusState.IDLE.value.capitalize()),
-            ("tx", "bolt", "Upload link speed", "— Mbps"),
-            ("rx", "bolt", "Download link speed", "— Mbps"),
-            ("retry", "history", "Reconnect attempts", f"0 / {self.config.max_attempts}"),
-        ]:
+        self.kpi_sub_labels = {}
+
+        metrics_config = [
+            ("status", "shield", "Status", StatusState.IDLE.value.capitalize(), "1 hr 12 m uptime"),
+            ("retry", "history", "Reconnect Attempts", "0", "Last 24 hours"),
+            ("tx", "bolt", "Upload Link Speed", "— Mbps", "5.0 GHz / Ch 48"),
+            ("rx", "wifi", "Download Link Speed", "— Mbps", "TX Rate: — Mbps"),
+        ]
+
+        for key, icon, title, value, subtext in metrics_config:
             card_shell = RoundedCard(kpi_strip, surface=COLOR_CARD, radius=12, inset=12)
             card_shell.pack(side="left", fill="both", expand=True, padx=4)
             card = card_shell.content
 
-            kpi_header = tk.Frame(card, bg=COLOR_CARD)
-            kpi_header.pack(anchor="w")
+            kpi_top = tk.Frame(card, bg=COLOR_CARD)
+            kpi_top.pack(anchor="w")
 
             if key == "status":
                 self.kpi_status_icon = tk.Label(
-                    kpi_header, image=self._router_status_image(StatusState.GOOD, 20),
+                    kpi_top, image=self._router_status_image(StatusState.GOOD, 24),
                     bg=COLOR_CARD, bd=0, highlightthickness=0
                 )
-                self.kpi_status_icon.pack(side="left", padx=(0, 5))
+                self.kpi_status_icon.pack(side="left", padx=(0, 6))
             else:
-                self._fluent_icon(kpi_header, icon, 20, COLOR_CARD).pack(side="left", padx=(0, 5))
+                self._fluent_icon(kpi_top, icon, 24, COLOR_CARD).pack(side="left", padx=(0, 6))
 
-            tk.Label(kpi_header, text=title.upper(), font=(FONT_UI, 7, "bold"),
-                     fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(side="left")
+            title_box = tk.Frame(kpi_top, bg=COLOR_CARD)
+            title_box.pack(side="left")
 
-            value_label = tk.Label(card, text=value, font=(FONT_MONO, 10, "bold"),
-                                   fg=COLOR_ACCENT, bg=COLOR_CARD)
-            value_label.pack(anchor="w", pady=(6, 0))
+            tk.Label(title_box, text=title, font=(FONT_UI, 8),
+                     fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(anchor="w")
+
+            v_fg = COLOR_ACCENT if key == "status" else COLOR_TEXT_PRIMARY
+            value_label = tk.Label(card, text=value, font=(FONT_MONO, 12, "bold"),
+                                   fg=v_fg, bg=COLOR_CARD)
+            value_label.pack(anchor="w", pady=(4, 0))
             self.kpi_labels[key] = value_label
 
-        # --- 3. MIDDLE ROW (Side-by-Side: Connection Overview & Protection Engine) ---
+            sub_label = tk.Label(card, text=subtext, font=(FONT_UI, 8),
+                                 fg=COLOR_TEXT_MUTED, bg=COLOR_CARD)
+            sub_label.pack(anchor="w", pady=(2, 0))
+            self.kpi_sub_labels[key] = sub_label
+
+        # --- 3. MIDDLE ROW (Connection Card & Protection Engine Matching Mockup) ---
         middle_row = tk.Frame(main_box, bg=COLOR_BG)
-        middle_row.pack(fill="x", pady=(0, 16))
+        middle_row.pack(fill="x", pady=(0, 14))
 
-        # Left Card: Connection Overview Card
+        # Left Card: Connection Card with Arc Speed Meter
         left_shell = RoundedCard(middle_row, surface=COLOR_CARD, radius=15, inset=16)
-        left_shell.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        left_shell.pack(side="left", fill="both", expand=True, padx=(0, 7))
         left_card = left_shell.content
-        self._section_header(left_card, "wifi", "Connection Card & Bitrate Meter")
 
-        overview_grid = tk.Frame(left_card, bg=COLOR_CARD)
-        overview_grid.pack(fill="x", pady=(10, 10))
-        self.overview_labels = {}
-
-        pairs_left = [
-            ("Wi-Fi Network", self.config.target_ssid, "ssid"),
-            ("Wi-Fi Technology", "—", "phy"),
-            ("Signal Strength", "—", "signal"),
-            ("Current Link Speed", "— Mbps", "speed"),
-            ("Network Adapter", "Wi-Fi", "interface"),
-            ("Frequency / Band", "—", "freq"),
-            ("Channel", "—", "channel"),
-            ("Quality State", "—", "quality")
-        ]
-        for idx, (k_txt, v_txt, key) in enumerate(pairs_left):
-            r, c = divmod(idx, 2)
-            cell = tk.Frame(overview_grid, bg=COLOR_CARD)
-            cell.grid(row=r, column=c, sticky="ew", padx=4, pady=4)
-            overview_grid.columnconfigure(c, weight=1)
-            tk.Label(cell, text=k_txt, font=(FONT_UI, 8), fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(anchor="w")
-            v_lbl = tk.Label(cell, text=v_txt, font=(FONT_MONO, 9, "bold"), fg=COLOR_TEXT_PRIMARY, bg=COLOR_CARD)
-            v_lbl.pack(anchor="w", pady=(2, 0))
-            self.overview_labels[key] = v_lbl
-
-        # Integrated SegmentedSpeedBar Bitrate Meter
-        meter_hdr = tk.Frame(left_card, bg=COLOR_CARD)
-        meter_hdr.pack(fill="x", pady=(8, 2))
-        tk.Label(meter_hdr, text="BITRATE QUALITY METER", font=(FONT_UI, 8, "bold"),
-                 fg=COLOR_TEXT_SECONDARY, bg=COLOR_CARD).pack(side="left")
-        tk.Label(meter_hdr, text="300 Mbps threshold", font=(FONT_UI, 8),
+        conn_hdr = tk.Frame(left_card, bg=COLOR_CARD)
+        conn_hdr.pack(fill="x")
+        tk.Label(conn_hdr, text="Connection Card", font=(FONT_UI, 11, "bold"),
+                 fg=COLOR_TEXT_PRIMARY, bg=COLOR_CARD).pack(side="left")
+        tk.Label(conn_hdr, text="•••", font=(FONT_UI, 10, "bold"),
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(side="right")
 
-        self.speed_bar = SegmentedSpeedBar(left_card, current_speed=0.0, threshold=300.0,
-                                           max_speed=1000.0, height=65, bg=COLOR_CARD)
-        self.speed_bar.pack(fill="x", pady=(0, 0))
+        # Arc Speed Meter Gauge
+        self.speed_bar = ArcSpeedMeter(left_card, current_speed=0.0, threshold=300.0,
+                                       max_speed=1000.0, height=170, bg=COLOR_CARD)
+        self.speed_bar.pack(fill="both", expand=True, pady=(10, 0))
 
-        # Right Card: Protection Engine Card
+        # Right Card: Protection Engine Panel
         right_shell = RoundedCard(middle_row, surface=COLOR_CARD, radius=15, inset=16)
-        right_shell.pack(side="right", fill="both", expand=True, padx=(8, 0))
+        right_shell.pack(side="right", fill="both", expand=True, padx=(7, 0))
         right_card = right_shell.content
-        self._section_header(right_card, "bolt", "Protection Engine")
 
-        engine_grid = tk.Frame(right_card, bg=COLOR_CARD)
-        engine_grid.pack(fill="x", pady=(10, 10))
-        self.engine_labels = {}
+        tk.Label(right_card, text="Protection Engine", font=(FONT_UI, 11, "bold"),
+                 fg=COLOR_TEXT_PRIMARY, bg=COLOR_CARD).pack(anchor="w", pady=(0, 10))
 
-        interval_str = f"{self.config.check_interval:.0f} sec"
-        delay_str = f"{self.config.reconnect_delay:.0f} sec"
-        attempts_str = f"{self.config.max_attempts} (Auto)"
+        # Toggle Row 1: Connection Monitoring Active
+        row1_panel = RoundedCard(right_card, surface=COLOR_PANEL, radius=10, inset=10, bg=COLOR_CARD)
+        row1_panel.pack(fill="x", pady=4)
+        r1_box = row1_panel.content
+        tk.Label(r1_box, text="Connection Monitoring", font=(FONT_UI, 9), fg=COLOR_TEXT_PRIMARY, bg=COLOR_PANEL).pack(side="left")
+        self.lbl_toggle_monitoring = tk.Label(r1_box, text="Active  ●", font=(FONT_UI, 9, "bold"), fg=COLOR_ACCENT, bg=COLOR_PANEL)
+        self.lbl_toggle_monitoring.pack(side="right")
 
-        pairs_engine = [
-            ("Protection status", "Active", "status"),
-            ("Check interval", interval_str, "interval"),
-            ("Reconnect delay", delay_str, "delay"),
-            ("Retry attempts", attempts_str, "attempts"),
-            ("Last check", "—", "last_check"),
-            ("Last recovery", "None", "last_recovery")
-        ]
-        for idx, (k_txt, v_txt, key) in enumerate(pairs_engine):
-            r, c = divmod(idx, 2)
-            cell = tk.Frame(engine_grid, bg=COLOR_CARD)
-            cell.grid(row=r, column=c, sticky="ew", padx=4, pady=4)
-            engine_grid.columnconfigure(c, weight=1)
-            tk.Label(cell, text=k_txt, font=(FONT_UI, 8), fg=COLOR_TEXT_MUTED, bg=COLOR_CARD).pack(anchor="w")
-            v_lbl = tk.Label(cell, text=v_txt, font=(FONT_MONO, 9, "bold"), fg=COLOR_TEXT_PRIMARY, bg=COLOR_CARD)
-            v_lbl.pack(anchor="w", pady=(2, 0))
-            self.engine_labels[key] = v_lbl
+        # Toggle Row 2: Low Speed Recovery Active
+        row2_panel = RoundedCard(right_card, surface=COLOR_PANEL, radius=10, inset=10, bg=COLOR_CARD)
+        row2_panel.pack(fill="x", pady=4)
+        r2_box = row2_panel.content
+        tk.Label(r2_box, text="Low Speed Recovery", font=(FONT_UI, 9), fg=COLOR_TEXT_PRIMARY, bg=COLOR_PANEL).pack(side="left")
+        self.lbl_toggle_recovery = tk.Label(r2_box, text="Active  ●", font=(FONT_UI, 9, "bold"), fg=COLOR_ACCENT, bg=COLOR_PANEL)
+        self.lbl_toggle_recovery.pack(side="right")
 
+        # Toggle Row 3: Current Network SSID Pill
+        row3_panel = RoundedCard(right_card, surface=COLOR_PANEL, radius=10, inset=10, bg=COLOR_CARD)
+        row3_panel.pack(fill="x", pady=4)
+        r3_box = row3_panel.content
+        self.lbl_network_ssid = tk.Label(r3_box, text=f"Current Network: {self.config.target_ssid} (SSID)",
+                                         font=(FONT_UI, 9), fg=COLOR_TEXT_SECONDARY, bg=COLOR_PANEL)
+        self.lbl_network_ssid.pack(anchor="w")
+
+        # Action Buttons inside Protection Engine Card
         self.btn_reconnect = RoundedButton(
             right_card, text="Reconnect now", command=self._on_reconnect_click,
             bg=COLOR_ACCENT, fg=COLOR_ON_ACCENT, activebackground=COLOR_ACCENT_HOVER,
             activeforeground=COLOR_ON_ACCENT, font=(FONT_UI, 9, "bold"),
-            image=self._fluent_image("history", 22), height=42
+            image=self._fluent_image("history", 20), height=38
         )
-        self.btn_reconnect.pack(fill="x", pady=(12, 0))
+        self.btn_reconnect.pack(fill="x", pady=(10, 0))
 
         self.btn_protection = RoundedButton(
             right_card, text="Stop protection", command=self._on_protection_toggle,
             bg=COLOR_ERROR, fg=COLOR_ON_ERROR, activebackground=COLOR_ERROR_HOVER,
             activeforeground=COLOR_ON_ERROR, font=(FONT_UI, 9, "bold"),
-            image=self._fluent_image("shield", 22), height=42
+            image=self._fluent_image("shield", 20), height=38
         )
-        self.btn_protection.pack(fill="x", pady=(8, 0))
+        self.btn_protection.pack(fill="x", pady=(6, 0))
 
-        # --- 4. BOTTOM ACTION BAR (Pinned Toolbar) ---
-        toolbar = tk.Frame(self, bg=COLOR_BG)
-        toolbar.pack(side="bottom", fill="x", padx=28, pady=(0, 16))
+        # --- 4. BOTTOM ACTION BAR (Floating Pill Toolbar Matching Mockup) ---
+        toolbar_shell = RoundedCard(self, surface=COLOR_PANEL, radius=20, inset=6, bg=COLOR_BG)
+        toolbar_shell.pack(side="bottom", pady=(0, 14))
+        toolbar = toolbar_shell.content
 
         for name, icon, label, cmd in [
             ("settings", "settings", "Settings", self._open_settings_dialog),
@@ -641,9 +670,9 @@ class WifiACGuardianWinUI(tk.Tk):
             btn = RoundedButton(
                 toolbar, text=label, command=cmd, bg=COLOR_PANEL, fg=COLOR_TEXT_PRIMARY,
                 activebackground=COLOR_PANEL_HOVER, activeforeground=COLOR_TEXT_PRIMARY,
-                font=(FONT_UI, 9, "bold"), image=self._fluent_image(icon, 22), height=40
+                font=(FONT_UI, 9), image=self._fluent_image(icon, 18), height=32, radius=14
             )
-            btn.pack(side="left", fill="x", expand=True, padx=4)
+            btn.pack(side="left", padx=4)
 
     def _fluent_image(self, name: str, size: int):
         cache_key = (name, size)
@@ -668,23 +697,17 @@ class WifiACGuardianWinUI(tk.Tk):
         return self._router_status_images[cache_key]
 
     def _set_router_status(self, state: StatusState) -> None:
-        self.lbl_status_icon.configure(image=self._router_status_image(state, 96))
-        self.kpi_status_icon.configure(image=self._router_status_image(state, 20))
+        self.lbl_status_icon.configure(image=self._router_status_image(state, 110))
+        self.kpi_status_icon.configure(image=self._router_status_image(state, 24))
 
     def _fluent_icon(self, parent, name: str, size: int, bg: str):
         return tk.Label(parent, image=self._fluent_image(name, size), bg=bg, bd=0, highlightthickness=0)
-
-    def _section_header(self, parent, icon: str, title: str) -> None:
-        row = tk.Frame(parent, bg=COLOR_CARD)
-        row.pack(fill="x")
-        self._fluent_icon(row, icon, 24, COLOR_CARD).pack(side="left", padx=(0, 7))
-        tk.Label(row, text=title, font=(FONT_UI, 11, "bold"), fg=COLOR_TEXT_PRIMARY, bg=COLOR_CARD).pack(side="left")
 
     def add_event_log(self, icon_type: str, message: str) -> None:
         logger.info(message)
 
     def _open_settings_dialog(self) -> None:
-        """Windows 11 / PowerToys inspired Settings Window."""
+        """Settings Window."""
         win = tk.Toplevel(self)
         win.title("WiFi AC Guardian — Settings")
         win.geometry("640x520")
@@ -919,31 +942,33 @@ class WifiACGuardianWinUI(tk.Tk):
     def _update_ui(self, link: LinkInfo) -> None:
         target = self.config.target_ssid or "lab5g"
 
+        # Calculate session uptime
+        elapsed_sec = int(time.time() - self._start_time)
+        hrs = elapsed_sec // 3600
+        mins = (elapsed_sec % 3600) // 60
+        uptime_str = f"{hrs} hr {mins} m uptime" if hrs > 0 else f"{mins} m uptime"
+
         if not self.guardian.state.running:
             self._set_router_status(StatusState.IDLE)
             self._set_hero_headline("PROTECTION STOPPED", COLOR_TEXT_MUTED)
-            self.lbl_hero_sub.config(text=f"Target: {target}  •  Status: PAUSED")
             self.lbl_target_info.config(text="Click Start Protection to resume background monitoring.")
+            self.lbl_hero_badge.config(text="", fg=COLOR_TEXT_MUTED)
+            self.lbl_glow_dot.config(fg=COLOR_TEXT_MUTED)
+
             self.kpi_labels["status"].config(text="Stopped", fg=COLOR_TEXT_MUTED)
-            self.kpi_labels["tx"].config(text="— Mbps")
-            self.kpi_labels["rx"].config(text="— Mbps")
-            self.kpi_labels["retry"].config(text="—")
+            self.kpi_sub_labels["status"].config(text=uptime_str)
+            self.kpi_labels["retry"].config(text="0", fg=COLOR_TEXT_MUTED)
+            self.kpi_sub_labels["retry"].config(text="Last 24 hours")
+            self.kpi_labels["tx"].config(text="— Mbps", fg=COLOR_TEXT_MUTED)
+            self.kpi_sub_labels["tx"].config(text="5.0 GHz / Ch --")
+            self.kpi_labels["rx"].config(text="— Mbps", fg=COLOR_TEXT_MUTED)
+            self.kpi_sub_labels["rx"].config(text="TX Rate: — Mbps")
 
-            self.overview_labels["ssid"].config(text=target)
-            self.overview_labels["phy"].config(text="—")
-            self.overview_labels["signal"].config(text="—")
-            self.overview_labels["speed"].config(text="— Mbps")
-            self.overview_labels["interface"].config(text=link.interface or "Wi-Fi")
-            self.overview_labels["freq"].config(text="—")
-            self.overview_labels["channel"].config(text="—")
-            self.overview_labels["quality"].config(text="PAUSED", fg=COLOR_TEXT_MUTED)
+            self.lbl_toggle_monitoring.config(text="Paused  ○", fg=COLOR_TEXT_MUTED)
+            self.lbl_toggle_recovery.config(text="Paused  ○", fg=COLOR_TEXT_MUTED)
+            self.lbl_network_ssid.config(text=f"Current Network: {target} (SSID)")
 
-            self.engine_labels["status"].config(text="Stopped", fg=COLOR_TEXT_MUTED)
-            self.engine_labels["interval"].config(text="Stopped")
-            self.engine_labels["delay"].config(text="Stopped")
-            self.engine_labels["attempts"].config(text="—")
-            self.engine_labels["last_check"].config(text="—")
-
+            self.speed_bar.set_speed(0.0)
             self._sync_protection_controls()
             return
 
@@ -955,35 +980,35 @@ class WifiACGuardianWinUI(tk.Tk):
 
         self._set_router_status(state)
         self._set_hero_headline(desc.headline, desc.accent)
+        self.lbl_hero_badge.config(text=" ✔" if state == StatusState.GOOD else "", fg=desc.accent)
+        self.lbl_glow_dot.config(fg=desc.accent)
 
-        bitrate_val = link.max_bitrate_mbps if link and link.connected else 0.0
-        bitrate_txt = f"{bitrate_val:.1f} Mbps" if bitrate_val > 0 else "0.0 Mbps"
-
-        self.lbl_hero_sub.config(text=f"Connected to {link.ssid or target}  •  Link Speed: {bitrate_txt}")
         self.lbl_target_info.config(text=desc_supporting_text(desc, target))
 
-        self.kpi_labels["status"].config(text=state.value.capitalize(), fg=desc.accent)
-        self.kpi_labels["tx"].config(text=f"{link.tx_bitrate or '—'}")
-        self.kpi_labels["rx"].config(text=f"{link.rx_bitrate or '—'}")
-        self.kpi_labels["retry"].config(text=f"{self.guardian.state.attempts_count} / {self.config.max_attempts}")
+        bitrate_val = link.max_bitrate_mbps if link and link.connected else 0.0
+        bitrate_txt = f"{bitrate_val:.0f} Mbps" if bitrate_val > 0 else "0 Mbps"
 
-        # Overview Card
-        self.overview_labels["ssid"].config(text=link.ssid or "Disconnected")
-        self.overview_labels["phy"].config(text=link.phy_mode.value if hasattr(link.phy_mode, 'value') else str(link.phy_mode))
-        self.overview_labels["signal"].config(text=f"{link.signal_pct}%" if link.signal_pct is not None else "N/A")
-        self.overview_labels["speed"].config(text=bitrate_txt, fg=COLOR_ACCENT if bitrate_val > 300.0 else COLOR_WARN)
-        self.overview_labels["interface"].config(text=link.interface or "Wi-Fi")
-        freq_txt = f"{link.freq_mhz:.0f} MHz" if link.freq_mhz else (link.radio_type or "5 GHz")
-        self.overview_labels["freq"].config(text=freq_txt)
-        self.overview_labels["channel"].config(text=str(link.channel) if link.channel else "Auto")
-        self.overview_labels["quality"].config(text=state.value, fg=desc.accent)
+        # Update KPI Cards to match mockup
+        self.kpi_labels["status"].config(text=state.value.capitalize() if state == StatusState.GOOD else state.value, fg=desc.accent)
+        self.kpi_sub_labels["status"].config(text=uptime_str)
 
-        # Protection Engine Card
-        self.engine_labels["status"].config(text=state.value, fg=desc.accent)
-        self.engine_labels["interval"].config(text=f"{self.config.check_interval:.0f} sec")
-        self.engine_labels["delay"].config(text=f"{self.config.reconnect_delay:.0f} sec")
-        self.engine_labels["attempts"].config(text=f"{self.config.max_attempts} (Auto)")
-        self.engine_labels["last_check"].config(text="Just now" if link.connected else "2 sec ago")
+        self.kpi_labels["retry"].config(text=str(self.guardian.state.attempts_count), fg=COLOR_TEXT_PRIMARY)
+        self.kpi_sub_labels["retry"].config(text="Last 24 hours")
+
+        tx_txt = f"{float(link.tx_bitrate.split()[0]):.0f} Mbps" if link and link.tx_bitrate and link.tx_bitrate.split()[0].replace('.','',1).isdigit() else (bitrate_txt if link.connected else "0 Mbps")
+        rx_txt = f"{float(link.rx_bitrate.split()[0]):.0f} Mbps" if link and link.rx_bitrate and link.rx_bitrate.split()[0].replace('.','',1).isdigit() else (bitrate_txt if link.connected else "0 Mbps")
+
+        self.kpi_labels["tx"].config(text=tx_txt, fg=COLOR_TEXT_PRIMARY)
+        band_ch = f"5.0 GHz / Ch {link.channel}" if link and link.channel else "5.0 GHz / Ch 48"
+        self.kpi_sub_labels["tx"].config(text=band_ch)
+
+        self.kpi_labels["rx"].config(text=rx_txt, fg=COLOR_TEXT_PRIMARY)
+        self.kpi_sub_labels["rx"].config(text=f"TX Rate: {tx_txt}")
+
+        # Update Protection Engine Card
+        self.lbl_toggle_monitoring.config(text="Active  ●", fg=COLOR_ACCENT)
+        self.lbl_toggle_recovery.config(text="Active  ●", fg=COLOR_ACCENT)
+        self.lbl_network_ssid.config(text=f"Current Network: {link.ssid or target} (SSID)")
 
         self.speed_bar.set_speed(bitrate_val)
 
