@@ -1,0 +1,5 @@
+[console_scripts]
+wifi-ac-guardian-win = wifi_ac_guardian_win.cli:main
+
+[gui_scripts]
+wifi-ac-guardian-win-gui = wifi_ac_guardian_win.cli:main

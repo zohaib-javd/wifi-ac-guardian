@@ -1,30 +1,23 @@
-"""Setup script for WiFi AC Guardian."""
 from setuptools import setup, find_packages
 
 setup(
-    name="wifi-ac-guardian",
+    name="wifi-ac-guardian-win",
     version="1.0.0",
-    description="Continuously ensures Wi-Fi is negotiated using Wi-Fi 5 (802.11ac) or higher.",
-    author="Antigravity Engineering",
+    description="WiFi AC Guardian for Windows 11 - Enforces Wi-Fi 5+ connection quality.",
+    author="Antigravity",
     packages=find_packages(),
-    python_requires=">=3.12",
+    package_data={"wifi_ac_guardian_win": ["assets/*.ico", "assets/*.png", "assets/fluent/*.png", "assets/router_status/*.png", "assets/tray_menu/*.bmp"]},
     install_requires=[
-        "pystray>=0.19.5",
-        "Pillow>=10.0.0",
+        "pystray>=0.19.0",
+        "Pillow>=9.0.0",
     ],
     entry_points={
         "console_scripts": [
-            "wifi-ac-guardian=wifi_ac_guardian.cli:main",
+            "wifi-ac-guardian-win = wifi_ac_guardian_win.cli:main",
+        ],
+        "gui_scripts": [
+            "wifi-ac-guardian-win-gui = wifi_ac_guardian_win.cli:main",
         ],
     },
-    classifiers=[
-        "Development Status :: 5 - Production/Stable",
-        "Environment :: X11 Applications",
-        "Intended Audience :: End Users/Desktop",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.12",
-        "Topic :: System :: Networking :: Monitoring",
-    ],
+    python_requires=">=3.8",
 )
