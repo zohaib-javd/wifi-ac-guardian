@@ -1,6 +1,6 @@
 """
 Tkinter Control Panel GUI for WiFi AC Guardian (Windows 11 & Ubuntu).
-Pixel-accurate implementation matching the exact specification blueprint.
+Feature 003 — Pixel-Accurate UI Implementation.
 """
 
 import os
@@ -13,7 +13,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk, messagebox
 from typing import Optional, List, Tuple
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageFilter
 
 from wifi_ac_guardian_win.core.models import GuardianConfig, StatusState, LinkInfo
 from wifi_ac_guardian_win.core.detector_win import WifiDetectorWin
@@ -26,7 +26,7 @@ from wifi_ac_guardian_win import animation
 
 logger = get_logger()
 
-# --- DESIGN SYSTEM TOKENS (EXACT COLORS FROM BLUEPRINT) ---
+# --- DESIGN SYSTEM TOKENS (EXACT SPECIFICATION FROM MOCKUP) ---
 from wifi_ac_guardian_win import theme
 
 COLOR_BG = "#0D0F10"               # Background (#0D0F10)
@@ -41,9 +41,9 @@ COLOR_WARN = "#F59E0B"             # Amber Warning (#F59E0B)
 COLOR_ERROR = "#EF4444"            # Error Red (#EF4444)
 COLOR_INFO = "#3B82F6"             # Information Blue (#3B82F6)
 
-COLOR_TEXT_PRIMARY = "#F2F4F7"     # Text Primary (28px/22px/14px, #F2F4F7)
-COLOR_TEXT_SECONDARY = "#A1A7AE"   # Text Secondary (14px/12px, #A1A7AE)
-COLOR_TEXT_MUTED = "#6B7280"       # Text Muted (12px, #6B7280)
+COLOR_TEXT_PRIMARY = "#F2F4F7"     # Text Primary (#F2F4F7)
+COLOR_TEXT_SECONDARY = "#A1A7AE"   # Text Secondary (#A1A7AE)
+COLOR_TEXT_MUTED = "#8C92A0"       # Text Muted (#8C92A0)
 
 COLOR_ACCENT_HOVER = "#2BE06B"
 COLOR_ERROR_HOVER = "#F87171"
@@ -86,7 +86,7 @@ ROUTER_STATUS_ASSETS = {
 
 
 class ArcSpeedMeter(tk.Canvas):
-    """Segmented Arc Gauge Bitrate Meter matching Section 6 specification."""
+    """Segmented Arc Gauge Bitrate Meter matching Mockup Section 6."""
 
     def __init__(
         self,
@@ -94,7 +94,7 @@ class ArcSpeedMeter(tk.Canvas):
         current_speed: float = 866.0,
         threshold: float = 300.0,
         max_speed: float = 1000.0,
-        width: int = 500,
+        width: int = 460,
         height: int = 210,
         bg: str = COLOR_CARD,
         **kwargs
@@ -145,7 +145,7 @@ class ArcSpeedMeter(tk.Canvas):
 
         cx = self.width / 2
         cy = self.height - 30
-        r = min(self.width / 2 - 36, self.height - 60)
+        r = min(self.width / 2 - 32, self.height - 54)
         thickness = 24
 
         # Track Background (#2A2F33)
@@ -160,7 +160,6 @@ class ArcSpeedMeter(tk.Canvas):
         seg2_angle = (100.0 / self.max_speed) * 180.0
         seg3_angle = 180.0 - seg1_angle - seg2_angle
 
-        # Active fill arc up to current_speed
         curr_ratio = max(0.0, min(1.0, self.current_speed / self.max_speed))
         active_extent = curr_ratio * 180.0
 
@@ -212,9 +211,9 @@ class ArcSpeedMeter(tk.Canvas):
         self.create_line(nx_inner, ny_inner, nx_outer, ny_outer, fill=COLOR_PRIMARY_GREEN, width=4)
 
         # Center Text Block (Section 6 Specification)
-        self.create_text(cx, cy - 56, text="Live Link Speed:", fill=COLOR_TEXT_SECONDARY, font=(FONT_UI, 12))
-        self.create_text(cx, cy - 28, text=f"{self.current_speed:.0f} Mbps", fill=COLOR_TEXT_PRIMARY, font=(FONT_UI, 28, "bold"))
-        self.create_text(cx, cy - 4, text=f"Minimum Required: {int(self.threshold)} Mbps", fill=COLOR_TEXT_SECONDARY, font=(FONT_UI, 12))
+        self.create_text(cx, cy - 54, text="Live Link Speed:", fill=COLOR_TEXT_SECONDARY, font=(FONT_UI, 12))
+        self.create_text(cx, cy - 26, text=f"{self.current_speed:.0f} Mbps", fill=COLOR_TEXT_PRIMARY, font=(FONT_UI, 28, "bold"))
+        self.create_text(cx, cy - 2, text=f"Minimum Required: {int(self.threshold)} Mbps", fill=COLOR_TEXT_SECONDARY, font=(FONT_UI, 12))
 
         # Bottom Labels: "0" (left), "0-1000 Mbps" (right) in #6B7280
         self.create_text(cx - r - 5, cy + 12, text="0", fill=COLOR_TEXT_MUTED, font=(FONT_UI, 10))
@@ -273,7 +272,7 @@ class RoundedCard(tk.Frame):
             return
         radius = min(self.radius, width // 2, height // 2)
 
-        # Card shadow / border
+        # Card border (#2A2F33)
         canvas.create_rectangle(radius, 0, width - radius, height, fill=COLOR_BORDER, outline="", tags="surface")
         canvas.create_rectangle(0, radius, width, height - radius, fill=COLOR_BORDER, outline="", tags="surface")
         for x, y, start in ((0, 0, 90), (width - radius * 2, 0, 0), (width - radius * 2, height - radius * 2, 270), (0, height - radius * 2, 180)):
@@ -421,7 +420,7 @@ class WifiACGuardianWinUI(tk.Tk):
             self.destroy()
             sys.exit(0)
 
-        # Section 1: Window Specifications
+        # Section 1: Window Specifications (1200 x 800)
         self.title("WiFi AC Guardian")
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
@@ -506,7 +505,7 @@ class WifiACGuardianWinUI(tk.Tk):
 
     def _build_ui(self) -> None:
         """Build UI matching Sections 1-13 Specifications."""
-        # Top Window Header
+        # Top Window Header Bar
         header = tk.Frame(self, bg=COLOR_BG)
         header.pack(fill="x", padx=24, pady=(16, 12))
         self._fluent_icon(header, "app", 36, COLOR_BG).pack(side="left", padx=(0, 10))
@@ -549,7 +548,7 @@ class WifiACGuardianWinUI(tk.Tk):
         hero_row = tk.Frame(hero_card, bg=COLOR_CARD)
         hero_row.pack(fill="x", pady=4)
 
-        # Left: 3D Wi-Fi Router icon (128px width, with #22C55E 30% glow)
+        # Left: 3D Wi-Fi Router icon (128px width, with #22C55E 30% glow behind router)
         self.lbl_status_icon = tk.Label(
             hero_row, image=self._router_status_image(StatusState.IDLE, 128),
             bg=COLOR_CARD, bd=0, highlightthickness=0
@@ -593,7 +592,7 @@ class WifiACGuardianWinUI(tk.Tk):
         )
         self.lbl_target_info.pack(side="left")
 
-        # Bottom edge glow line (#22C55E 20% opacity, 1px height)
+        # Bottom edge ambient green glow line (#22C55E 20% opacity, 1px height)
         glow_line = tk.Frame(hero_card, bg=COLOR_PRIMARY_GREEN, height=1)
         glow_line.pack(fill="x", side="bottom", pady=(12, 0))
 
@@ -729,7 +728,7 @@ class WifiACGuardianWinUI(tk.Tk):
         )
         self.btn_protection.pack(fill="x", pady=(8, 0))
 
-        # --- SECTION 8: BOTTOM ACTION BAR ---
+        # --- SECTION 8: BOTTOM ACTION BAR (SINGLE CONNECTED WINDOWS 11 PILL CONTAINER) ---
         toolbar_shell = RoundedCard(self, surface=COLOR_CARD, radius=24, inset=8, bg=COLOR_BG)
         toolbar_shell.pack(side="bottom", fill="x", padx=24, pady=(0, 16))
         toolbar_content = toolbar_shell.content
@@ -782,7 +781,6 @@ class WifiACGuardianWinUI(tk.Tk):
         logger.info(message)
 
     def _open_settings_dialog(self) -> None:
-        """Settings Window."""
         win = tk.Toplevel(self)
         win.title("WiFi AC Guardian — Settings")
         win.geometry("640x520")
