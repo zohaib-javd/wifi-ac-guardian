@@ -224,10 +224,18 @@ class SystemTrayAppWin:
                 new_image = create_pillow_icon_for_state(state)
                 self.icon_instance.icon = new_image
 
+            # Route tooltip through the descriptor (feature 001, T023)
+            from wifi_ac_guardian_win.status_presentation import get_presentation
+            target = self.config.target_ssid or "lab5g"
+            desc = get_presentation(state, target_ssid=target)
+
             if link and link.connected:
-                title = f"WiFi AC Guardian: {link.phy_summary} ({link.ssid})"
+                ssid = link.ssid or "Unknown"
+                bitrate_str = f" ({link.max_bitrate_mbps:.0f} Mbps)" if link.max_bitrate_mbps > 0 else ""
+                title = f"{desc.tray_tooltip_prefix} — {ssid}{bitrate_str}"
             else:
-                title = f"WiFi AC Guardian: {state.value}"
+                title = desc.tray_tooltip_prefix
+
             self.icon_instance.title = title
             try:
                 self.icon_instance.update_menu()

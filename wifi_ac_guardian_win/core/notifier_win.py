@@ -37,6 +37,10 @@ class WindowsNotifier:
 
         self.last_status = status
 
+        # Source notification text from the shared status descriptor (feature 001, T023)
+        from wifi_ac_guardian_win.status_presentation import get_presentation
+        desc = get_presentation(status)
+
         if status == StatusState.GOOD:
             title = "WiFi AC Guardian"
             phy_name = link.phy_summary if link else "Wi-Fi 5 (802.11ac)"
@@ -44,11 +48,11 @@ class WindowsNotifier:
             body = f"Connected using {phy_name} - SSID: {ssid}"
 
         elif status == StatusState.RETRYING:
-            title = "WiFi AC Guardian - Wi-Fi 4 Detected"
-            body = f"Detected Wi-Fi 4 (802.11n). Retrying connection... (Attempt {attempts}/{max_attempts})"
+            title = f"WiFi AC Guardian - {desc.headline}"
+            body = f"{desc.supporting} (Attempt {attempts}/{max_attempts})"
 
         elif status == StatusState.FAILED:
-            title = "WiFi AC Guardian - Reconnection Failed"
+            title = f"WiFi AC Guardian - {desc.headline}"
             body = f"Unable to obtain Wi-Fi 5 after {max_attempts} attempts."
 
         else:

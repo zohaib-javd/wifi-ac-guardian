@@ -885,42 +885,31 @@ class WifiACGuardianWinUI(tk.Tk):
         target = self.config.target_ssid or "lab5g"
         state = self.guardian.state.status if self.guardian else StatusState.IDLE
 
+        # Route all state→visual mappings through the single descriptor (feature 001, T022).
+        from wifi_ac_guardian_win.status_presentation import get_presentation
+        desc = get_presentation(state, target_ssid=target)
+
+        # Update hero and KPI from descriptor
+        self._set_router_status(state)
+        self.lbl_hero_state.config(text=desc.headline, fg=desc.accent, bg=COLOR_CARD)
+        self.hero_labels["status_val"].config(text=state.value, fg=desc.accent)
+        self.kpi_labels["status"].config(text=state.value.capitalize(), fg=desc.accent)
+
+        # Button styling: GOOD/FAILED → accent fill; RETRYING → warn fill; STANDBY → info or accent
+        # (primary_available controls the fill for STANDBY)
         if state == StatusState.GOOD:
-            self._set_router_status(state)
-            self.lbl_hero_state.config(text="HIGH-SPEED WI-FI ACTIVE", fg=COLOR_ACCENT, bg=COLOR_CARD)
-            self.hero_labels["status_val"].config(text="GOOD", fg=COLOR_ACCENT)
-            self.btn_reconnect.config(text="Reconnect now", bg=COLOR_ACCENT, fg="#0A1C11")
-            self.kpi_labels["status"].config(text="Protected", fg=COLOR_ACCENT)
-
+            self.btn_reconnect.config(text=desc.action_label, bg=COLOR_ACCENT, fg=theme.ON_ACCENT)
         elif state == StatusState.RETRYING:
-            self._set_router_status(state)
-            self.lbl_hero_state.config(text="RESTORING WI-FI 5 SPEED...", fg=COLOR_WARN, bg=COLOR_CARD)
-            self.hero_labels["status_val"].config(text="RESTORING", fg=COLOR_WARN)
-            self.btn_reconnect.config(text="Reconnecting...", bg=COLOR_WARN, fg="#121212")
-            self.kpi_labels["status"].config(text="Reconnecting", fg=COLOR_WARN)
-
+            self.btn_reconnect.config(text=desc.action_label, bg=COLOR_WARN, fg=theme.ON_WARN)
         elif state == StatusState.FAILED:
-            self._set_router_status(state)
-            self.lbl_hero_state.config(text="WI-FI DOWNGRADED", fg=COLOR_ERROR, bg=COLOR_CARD)
-            self.hero_labels["status_val"].config(text="DOWNGRADED", fg=COLOR_ERROR)
-            self.btn_reconnect.config(text="Reconnect now", bg=COLOR_ERROR, fg="#FFFFFF")
-            self.kpi_labels["status"].config(text="Downgraded", fg=COLOR_WARN)
-
+            self.btn_reconnect.config(text=desc.action_label, bg=COLOR_ERROR, fg=theme.ON_ERROR)
         elif state == StatusState.STANDBY:
-            self._set_router_status(state)
-            self.lbl_hero_state.config(text="BACKUP NETWORK (STANDBY)", fg=COLOR_INFO, bg=COLOR_CARD)
-            self.hero_labels["status_val"].config(text="STANDBY", fg=COLOR_INFO)
-            self.kpi_labels["status"].config(text="Standby", fg=COLOR_INFO)
             if self.guardian and self.guardian.state.primary_available:
-                self.btn_reconnect.config(text=f"Switch to {target}", bg=COLOR_ACCENT, fg="#0A1C11")
+                self.btn_reconnect.config(text=desc.action_label, bg=COLOR_ACCENT, fg=theme.ON_ACCENT)
             else:
-                self.btn_reconnect.config(text=f"Switch to {target}", bg=COLOR_INFO, fg="#FFFFFF")
-
-        else:
-            self._set_router_status(state)
-            self.lbl_hero_state.config(text="DISCONNECTED", fg=COLOR_TEXT_MUTED, bg=COLOR_CARD)
-            self.hero_labels["status_val"].config(text="DISCONNECTED", fg=COLOR_TEXT_MUTED)
-            self.kpi_labels["status"].config(text="Disconnected", fg=COLOR_ERROR)
+                self.btn_reconnect.config(text=desc.action_label, bg=COLOR_INFO, fg=theme.ON_ERROR)
+        else:  # DISCONNECTED / IDLE
+            self.btn_reconnect.config(text=desc.action_label, bg=COLOR_ERROR, fg=theme.ON_ERROR)
 
         self.lbl_target_info.config(text=f"Target: {target}")
 
