@@ -51,7 +51,7 @@ export default function MetricCards({
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-4 my-4">
+    <div className="grid grid-cols-4 gap-3 my-3">
       {cards.map((card, idx) => {
         const Icon = card.icon;
         return (
@@ -60,17 +60,19 @@ export default function MetricCards({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: idx * 0.05 }}
-            className="rounded-xl bg-[#16181A] border border-[#2A2F33] p-4 flex flex-col justify-between h-[88px] hover:border-[#22C55E]/40 transition-colors"
+            className="rounded-xl bg-[#16181A] border border-[#2A2F33] p-3.5 flex flex-col justify-between min-h-[92px] hover:border-[#22C55E]/40 transition-colors overflow-hidden"
           >
-            <div className="flex items-center space-x-2">
-              <div className="p-1 rounded-md bg-[#1E2124] text-[#22C55E]">
-                <Icon className="w-4 h-4" />
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="p-1 rounded-md bg-[#1E2124] text-[#22C55E] flex-shrink-0">
+                <Icon className="w-3.5 h-3.5" />
               </div>
-              <span className="text-xs font-semibold text-[#A1A7AE] uppercase tracking-wide">{card.title}</span>
+              <span className="text-[11px] font-bold text-[#A1A7AE] uppercase tracking-wider truncate">
+                {card.title}
+              </span>
             </div>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className={`text-base font-bold ${card.color}`}>{card.value}</span>
-              <span className="text-[11px] text-[#6B7280]">{card.subtext}</span>
+            <div className="flex items-baseline justify-between mt-2 min-w-0">
+              <span className={`text-sm font-extrabold ${card.color} truncate mr-1`}>{card.value}</span>
+              <span className="text-[10px] text-[#6B7280] flex-shrink-0">{card.subtext}</span>
             </div>
           </motion.div>
         );

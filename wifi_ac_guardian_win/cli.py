@@ -71,6 +71,7 @@ def main(args: Optional[List[str]] = None) -> int:
     parser.add_argument("--target-ssid", type=str, default="", help="Target SSID to lock onto.")
     parser.add_argument("-t", "--interval", type=float, default=15.0, help="Poll interval in seconds.")
     parser.add_argument("--max-attempts", type=int, default=0, help="Max reconnection retries (0 = Unlimited).")
+    parser.add_argument("--no-tray", action="store_true", help="Disable Python system tray icon.")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     parsed = parser.parse_args(args)
@@ -132,6 +133,8 @@ def main(args: Optional[List[str]] = None) -> int:
             config.target_ssid = parsed.target_ssid
         config.check_interval = parsed.interval
         config.max_attempts = parsed.max_attempts
+        if parsed.no_tray:
+            config.enable_tray = False
 
         guardian = WifiACGuardianWin(config=config)
         guardian.start()

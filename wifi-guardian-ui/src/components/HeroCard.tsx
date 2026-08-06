@@ -24,30 +24,30 @@ export default function HeroCard({
       className="relative overflow-hidden rounded-2xl bg-[#16181A] border border-[#2A2F33] p-5 shadow-xl"
     >
       {/* Background Radial Glow */}
-      <div className="absolute top-1/2 left-16 -translate-y-1/2 w-40 h-40 bg-[#22C55E]/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-16 -translate-y-1/2 w-44 h-44 bg-[#22C55E]/15 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 flex items-center justify-between">
-        {/* Left 3D Wi-Fi Icon */}
-        <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+        {/* Left 3D Cyan Router Artwork */}
+        <div className="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
           <Image
-            src="/wifi_icon.png"
-            alt="3D Wi-Fi Icon"
-            width={96}
-            height={96}
-            className="object-contain drop-shadow-[0_8px_16px_rgba(34,197,94,0.3)]"
+            src="/router.png"
+            alt="Wi-Fi Router Artwork"
+            width={112}
+            height={112}
+            className="object-contain drop-shadow-[0_10px_20px_rgba(34,197,94,0.25)]"
             priority
           />
         </div>
 
         {/* Right Text Content */}
-        <div className="flex-1 ml-6">
+        <div className="flex-1 ml-6 min-w-0">
           <div className="flex items-center space-x-2.5">
-            <h2 className="text-xl font-bold text-[#F2F4F7] tracking-tight">{statusText}</h2>
+            <h2 className="text-xl font-bold text-[#F2F4F7] tracking-tight truncate">{statusText}</h2>
             <CheckCircle2 className="w-6 h-6 text-[#22C55E] flex-shrink-0" />
           </div>
 
-          <div className="mt-1.5 flex items-center space-x-2 text-xs text-[#A1A7AE]">
-            <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
+          <div className="mt-1.5 flex items-center space-x-2 text-xs text-[#A1A7AE] flex-wrap">
+            <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse flex-shrink-0" />
             <span>Subtle status glow</span>
             <span className="text-[#6B7280]">|</span>
             <span>Connected to <strong className="text-[#F2F4F7]">{ssid}</strong></span>
