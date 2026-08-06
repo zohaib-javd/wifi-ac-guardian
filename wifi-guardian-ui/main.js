@@ -12,6 +12,21 @@ let isQuitting = false;
 
 const STATIC_PORT = 39147;
 
+// Ensure single desktop instance
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 const mimeTypes = {
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -55,6 +70,14 @@ function startStaticServer() {
         res.end(data);
       }
     });
+  });
+
+  staticServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`[Electron] Port ${STATIC_PORT} already bound by active primary instance.`);
+    } else {
+      console.error('[Electron] Static server error:', err);
+    }
   });
 
   staticServer.listen(STATIC_PORT, '127.0.0.1', () => {
