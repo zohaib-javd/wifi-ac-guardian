@@ -1,12 +1,35 @@
 {
   "name": "wifi-guardian-ui",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "main": "main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "app": "electron .",
+    "dist": "next build && electron-builder"
+  },
+  "build": {
+    "appId": "com.wifiacguardian.app",
+    "productName": "WiFi AC Guardian",
+    "files": [
+      "main.js",
+      "preload.js",
+      "out/**/*",
+      "public/**/*"
+    ],
+    "directories": {
+      "output": "dist_app"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/router.png"
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -23,6 +46,8 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "autoprefixer": "^10.5.4",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3"
