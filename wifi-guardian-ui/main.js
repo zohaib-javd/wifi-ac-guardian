@@ -8,11 +8,14 @@ let mainWindow = null;
 let tray = null;
 let pythonProcess = null;
 let staticServer = null;
+let statusPollInterval = null;
 let isQuitting = false;
+let currentStatusIcon = null;
 
 const STATIC_PORT = 39147;
+const PYTHON_IPC_PORT = 39146;
 
-// Ensure single desktop instance
+// Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -41,7 +44,7 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 };
 
-// Start Built-in Node Static Server for Next.js App
+// Built-in static server for Next.js app
 function startStaticServer() {
   const outDir = path.join(__dirname, 'out');
   staticServer = http.createServer((req, res) => {
@@ -74,40 +77,43 @@ function startStaticServer() {
 
   staticServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      console.log(`[Electron] Port ${STATIC_PORT} already bound by active primary instance.`);
+      console.log(`[Electron] Port ${STATIC_PORT} bound by primary instance.`);
     } else {
       console.error('[Electron] Static server error:', err);
     }
   });
 
   staticServer.listen(STATIC_PORT, '127.0.0.1', () => {
-    console.log(`[Electron] Static UI server running on http://127.0.0.1:${STATIC_PORT}`);
+    console.log(`[Electron] Static UI server listening on http://127.0.0.1:${STATIC_PORT}`);
   });
 }
 
-// Spawn Python Guardian Engine in background
+// Spawn Python Guardian Backend with --no-tray (single system tray icon)
 function startPythonBackend() {
   try {
     const pythonExe = process.platform === 'win32' ? 'python' : 'python3';
-    pythonProcess = spawn(pythonExe, ['-m', 'wifi_ac_guardian_win', '--daemon'], {
+    pythonProcess = spawn(pythonExe, ['-m', 'wifi_ac_guardian_win', '--daemon', '--no-tray'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'ignore',
       detached: false,
     });
-    console.log('[Electron] Python Guardian Engine spawned successfully.');
+    console.log('[Electron] Python Guardian Engine spawned in daemon mode without tray.');
   } catch (err) {
     console.error('[Electron] Failed to spawn Python backend:', err);
   }
 }
 
 function createWindow() {
+  const windowIconPath = path.join(__dirname, 'public', 'router.png');
+
   mainWindow = new BrowserWindow({
-    width: 960,
-    height: 740,
-    minWidth: 880,
-    minHeight: 660,
+    width: 980,
+    height: 760,
+    minWidth: 900,
+    minHeight: 680,
     backgroundColor: '#0D0F10',
     title: 'WiFi AC Guardian',
+    icon: windowIconPath,
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -117,7 +123,6 @@ function createWindow() {
     },
   });
 
-  // Load from local static server
   mainWindow.loadURL(`http://127.0.0.1:${STATIC_PORT}`);
 
   mainWindow.once('ready-to-show', () => {
@@ -137,12 +142,14 @@ function createWindow() {
   });
 }
 
+// Dynamic Single System Tray Icon (Green = Good, Red/Cross = Failed, Amber = Retrying)
 function createSystemTray() {
-  const iconPath = path.join(__dirname, 'public', 'wifi_icon.png');
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  const defaultIconPath = path.join(__dirname, 'public', 'status', 'good.png');
+  const icon = nativeImage.createFromPath(defaultIconPath).resize({ width: 16, height: 16 });
   
   tray = new Tray(icon);
   tray.setToolTip('WiFi AC Guardian — Protected');
+  currentStatusIcon = 'good';
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'WiFi AC Guardian', enabled: false },
@@ -163,7 +170,7 @@ function createSystemTray() {
       click: async () => {
         try {
           const fetch = (await import('node-fetch')).default || globalThis.fetch;
-          await fetch('http://127.0.0.1:39146', {
+          await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'reconnect_now' }),
@@ -188,6 +195,7 @@ function createSystemTray() {
             staticServer.close();
           } catch (e) {}
         }
+        if (statusPollInterval) clearInterval(statusPollInterval);
         app.quit();
       },
     },
@@ -200,6 +208,42 @@ function createSystemTray() {
       mainWindow.focus();
     }
   });
+
+  // Poll Python IPC to dynamically update System Tray Icon color
+  statusPollInterval = setInterval(async () => {
+    try {
+      const fetch = (await import('node-fetch')).default || globalThis.fetch;
+      const res = await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`);
+      if (res.ok) {
+        const data = await res.json();
+        const status = (data.status || 'good').toLowerCase();
+        
+        let iconName = 'good.png';
+        let tooltipText = `WiFi AC Guardian — Protected (${data.linkSpeed || 866} Mbps)`;
+
+        if (status.includes('fail') || status.includes('disconnect')) {
+          iconName = 'failed.png';
+          tooltipText = 'WiFi AC Guardian — Reconnection Failed';
+        } else if (status.includes('retry') || status.includes('reconnect')) {
+          iconName = 'retrying.png';
+          tooltipText = 'WiFi AC Guardian — Retrying Connection...';
+        } else if (status.includes('standby') || status.includes('idle')) {
+          iconName = 'standby.png';
+          tooltipText = 'WiFi AC Guardian — Standby';
+        }
+
+        if (currentStatusIcon !== iconName) {
+          currentStatusIcon = iconName;
+          const statusIconPath = path.join(__dirname, 'public', 'status', iconName);
+          const newIcon = nativeImage.createFromPath(statusIconPath).resize({ width: 16, height: 16 });
+          tray.setImage(newIcon);
+        }
+        tray.setToolTip(tooltipText);
+      }
+    } catch (e) {
+      // IPC polling fallback
+    }
+  }, 3000);
 }
 
 app.whenReady().then(() => {
@@ -230,4 +274,5 @@ app.on('will-quit', () => {
       staticServer.close();
     } catch (e) {}
   }
+  if (statusPollInterval) clearInterval(statusPollInterval);
 });
