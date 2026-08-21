@@ -44,6 +44,7 @@ def parse_netsh_output(raw_output: str, interface_fallback: str = "Wi-Fi") -> Li
     # Interface name
     if "name" in key_val:
         info.interface = key_val["name"]
+        info.adapter = key_val.get("description") or info.interface
 
     # State check
     state_str = key_val.get("state", "").lower()
@@ -164,6 +165,32 @@ class WifiDetectorWin:
                 phy_mode=PhyMode.UNKNOWN,
                 raw_output=f"Error executing command: {e}"
             )
+
+    def get_saved_wifi_profiles(self) -> List[str]:
+        """
+        Executes 'netsh wlan show profiles' and returns a list of saved SSIDs (profiles) paired with the OS.
+        """
+        cmd = ["netsh", "wlan", "show", "profiles"]
+        profiles = []
+        try:
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=flags
+            )
+            for line in res.stdout.splitlines():
+                if "All User Profile" in line and ":" in line:
+                    parts = line.split(":", 1)
+                    val = parts[1].strip()
+                    if val and val not in profiles:
+                        profiles.append(val)
+        except Exception as e:
+            logger.error(f"Error fetching saved profiles: {e}")
+        return profiles
+
     def get_available_ssids(self) -> List[str]:
         """
         Executes 'netsh wlan show networks' and returns a sorted list of unique nearby SSIDs.

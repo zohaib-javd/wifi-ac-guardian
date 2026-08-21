@@ -12,6 +12,7 @@ from wifi_ac_guardian_win.core.models import (
     GuardianState,
     StatusState,
     LinkInfo,
+    PhyMode,
 )
 from wifi_ac_guardian_win.core.detector_win import WifiDetectorWin
 from wifi_ac_guardian_win.core.reconnector_win import WifiReconnectorWin
@@ -31,12 +32,17 @@ class WifiACGuardianWin:
 
         self.detector = WifiDetectorWin(interface=self.config.interface)
         self.reconnector = WifiReconnectorWin(config=self.config)
-        self.notifier = WindowsNotifier(enabled=self.config.enable_notifications)
+        self.notifier = WindowsNotifier(enabled=self.config.enable_notifications, sound_enabled=self.config.sound_alerts)
         self.state = GuardianState()
 
         self.stop_event = threading.Event()
         self._lock = threading.Lock()
         self._loop_thread: Optional[threading.Thread] = None
+        # During boot, Windows may report a disconnected or incomplete link while
+        # NetworkManager is still associating. Observe those states without
+        # touching the adapter until a valid target-link reading is available.
+        self._has_established_target_link = False
+        self._consecutive_degraded_readings = 0
 
         try:
             from wifi_ac_guardian_win.ipc_server import start_ipc_server
@@ -93,6 +99,7 @@ class WifiACGuardianWin:
     def stop(self) -> None:
         logger.info("Stopping WiFi AC Guardian service...")
         self.stop_protection()
+        self.stop_event.set()
 
         if self.tray_app:
             self.tray_app.stop()
@@ -103,7 +110,7 @@ class WifiACGuardianWin:
         """Stop monitoring while keeping the tray service available."""
         logger.info("Stopping WiFi AC Guardian protection...")
         self.state.running = False
-        self.stop_event.set()
+        self.config.is_paused = True
         self.state.status = StatusState.IDLE
         if self.tray_app:
             self.tray_app.set_protection_running(False)
@@ -112,8 +119,11 @@ class WifiACGuardianWin:
     def start_protection(self) -> threading.Thread:
         """Start monitoring again without rebuilding the guardian instance."""
         if self._loop_thread and self._loop_thread.is_alive():
+            self.config.is_paused = False
+            self.state.running = True
             return self._loop_thread
         logger.info("Starting WiFi AC Guardian protection...")
+        self.config.is_paused = False
         self.state.running = True
         self.stop_event.clear()
         if self.tray_app:
@@ -133,6 +143,43 @@ class WifiACGuardianWin:
                 break
 
             self.perform_check()
+
+    def _reset_degraded_confirmation(self) -> None:
+        self._consecutive_degraded_readings = 0
+
+    def _is_confirmable_degraded_link(self, link: LinkInfo) -> bool:
+        """Return True only for a complete, actionable degraded target link.
+
+        Unknown PHY/rate data is common while Windows is negotiating at boot and
+        deliberately remains observation-only. A confirmed Wi-Fi 4-or-older PHY
+        is actionable even when its rate is missing; Wi-Fi 5+ requires a real
+        measured rate below the configured threshold.
+        """
+        if not link.connected or link.phy_mode in {PhyMode.UNKNOWN, PhyMode.DISCONNECTED}:
+            return False
+        if link.phy_mode not in {PhyMode.VHT, PhyMode.HE, PhyMode.EHT}:
+            return True
+        return 0 < link.max_bitrate_mbps < self.config.min_bitrate_threshold
+
+    def _observe_degraded_target_link(self, link: LinkInfo) -> bool:
+        """Count stable degraded readings and return True after two samples."""
+        if not self._is_confirmable_degraded_link(link):
+            self._reset_degraded_confirmation()
+            self._set_status(StatusState.STANDBY, link)
+            return False
+
+        self._consecutive_degraded_readings += 1
+        if self._consecutive_degraded_readings < 2:
+            logger.warning(
+                "Observed a valid degraded target link; waiting for a second "
+                "consecutive reading before recovery (%s/2).",
+                self._consecutive_degraded_readings,
+            )
+            self._set_status(StatusState.STANDBY, link)
+            return False
+
+        self._reset_degraded_confirmation()
+        return True
 
     def perform_check(self) -> LinkInfo:
         with self._lock:
@@ -156,12 +203,17 @@ class WifiACGuardianWin:
             if not link.connected:
                 logger.info("Wi-Fi status: Disconnected.")
                 self.state.primary_available = False
-                if primary_target:
-                    logger.info(f"Target Primary SSID '{primary_target}' configured. Initiating connection...")
+                self._reset_degraded_confirmation()
+                if self._has_established_target_link and primary_target:
+                    logger.info(
+                        f"Previously healthy target '{primary_target}' disconnected. "
+                        "Initiating normal outage recovery..."
+                    )
                     self._execute_reconnection_sequence(target_ssid=primary_target)
                     return self.state.current_link
 
-                self._set_status(StatusState.DISCONNECTED, link)
+                logger.info("Boot/association observation mode: waiting for Windows to establish a valid Wi-Fi link.")
+                self._set_status(StatusState.STANDBY, link)
                 return link
 
             curr_ssid = (link.ssid or "").strip()
@@ -176,22 +228,30 @@ class WifiACGuardianWin:
             # Case B: Connected to Primary Target Network (e.g. lab5g)
             if is_primary:
                 self.state.primary_available = False
-                if link.is_good:
-                    logger.info(f"Primary Network '{primary_target}' is GOOD ({link.phy_summary}, Bitrate > 300Mbps). Continuous protection active.")
+                if link.is_good(min_bitrate_threshold=self.config.min_bitrate_threshold):
+                    logger.info(f"Primary Network '{primary_target}' is GOOD ({link.phy_summary}, Bitrate >= {self.config.min_bitrate_threshold}Mbps). Continuous protection active.")
+                    self._has_established_target_link = True
+                    self._reset_degraded_confirmation()
                     self.state.attempts_count = 0
                     self._set_status(StatusState.GOOD, link)
                     return link
 
-                # Quality downgraded on Primary network (e.g., switched to 802.11n or bitrate <= 300 Mbps)
+                # Quality downgrade confirmation: never reset while PHY/rate
+                # data is incomplete during association. Two valid degraded
+                # readings are required before touching the adapter.
+                if not self._observe_degraded_target_link(link):
+                    return link
+
                 logger.warning(
-                    f"[ALERT] Primary Network '{primary_target}' downgraded to {link.phy_summary} (Bitrate={link.max_bitrate_mbps:.1f} Mbps <= 300Mbps). "
-                    "Initiating Hardware Wi-Fi Adapter Radio Reset to restore Wi-Fi 5+..."
+                    f"[ALERT] Primary Network '{primary_target}' downgraded to {link.phy_summary} (Bitrate={link.max_bitrate_mbps:.1f} Mbps < {self.config.min_bitrate_threshold}Mbps). "
+                    "Confirmed on two consecutive readings; initiating Hardware Wi-Fi Adapter Radio Reset to restore Wi-Fi 5+..."
                 )
                 self._execute_reconnection_sequence(target_ssid=primary_target)
                 return self.state.current_link
 
             # Case C: Connected to Backup / Secondary Network (e.g. Metalgear)
             else:
+                self._reset_degraded_confirmation()
                 logger.info(
                     f"Connected to Backup/Secondary Network '{curr_ssid}' (Primary: '{primary_target}'). "
                     "Protection in STANDBY mode to prevent unwanted radio resets on backup router."
@@ -211,7 +271,7 @@ class WifiACGuardianWin:
                         updated = self.detector.get_link_info()
                         self.state.current_link = updated
                         if updated.ssid and updated.ssid.lower() == primary_target.lower():
-                            self._set_status(StatusState.GOOD if updated.is_good else StatusState.RETRYING, updated)
+                            self._set_status(StatusState.GOOD if updated.is_good(min_bitrate_threshold=self.config.min_bitrate_threshold) else StatusState.RETRYING, updated)
                             return updated
 
                 self._set_status(StatusState.STANDBY, link)
@@ -238,10 +298,12 @@ class WifiACGuardianWin:
         self.state.current_link = updated_link
 
         target = (self.config.target_ssid or "").strip()
-        is_target_good = (not target or (updated_link.ssid and updated_link.ssid.lower() == target.lower())) and updated_link.is_good
+        is_target_good = (not target or (updated_link.ssid and updated_link.ssid.lower() == target.lower())) and updated_link.is_good(min_bitrate_threshold=self.config.min_bitrate_threshold)
 
         if is_target_good:
             logger.info(f"Reconnection successful! Re-established {updated_link.phy_summary} on SSID '{updated_link.ssid}' (Bitrate: {updated_link.tx_bitrate or updated_link.rx_bitrate}).")
+            self._has_established_target_link = True
+            self._reset_degraded_confirmation()
             self.state.attempts_count = 0
             self._set_status(StatusState.GOOD, updated_link)
         else:
@@ -260,3 +322,5 @@ class WifiACGuardianWin:
         )
         if self.tray_app:
             self.tray_app.update_status(status, link)
+
+

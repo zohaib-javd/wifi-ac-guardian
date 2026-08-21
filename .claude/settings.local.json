@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git config *)",
+      "PowerShell(git status --short; \"---BRANCH---\"; git rev-parse --abbrev-ref HEAD; \"---LOG---\"; git log --oneline -10; \"---TAGS---\"; git tag)",
+      "PowerShell(if \\(-not \\(Test-Path .\\\\docs\\)\\) { New-Item -ItemType Directory -Path .\\\\docs | Out-Null; \"CREATED\" } else { \"EXISTS\" })",
+      "PowerShell(Get-ChildItem -Recurse -File .\\\\wifi_ac_guardian_win | Select-Object @{n='P';e={$_.FullName.Replace\\($PWD.Path+'\\\\',''\\)}}, @{n='KB';e={[math]::Round\\($_.Length/1KB,1\\)}} | Format-Table -AutoSize; \"---TESTS---\"; if \\(Test-Path .\\\\tests\\) { Get-ChildItem -Recurse -File .\\\\tests | Select-Object -ExpandProperty Name } else { \"NO_TESTS_DIR\" })",
+      "PowerShell(python -m pytest -q 2>&1 | Select-Object -Last 15)",
+      "PowerShell(python scripts/end_session.py --check-only 2>&1 | Select-Object -First 60)",
+      "PowerShell(python -m compileall -q wifi_ac_guardian_win; \"compileall exit: $LASTEXITCODE\"; python -m pytest -q 2>&1 | Select-Object -Last 4)",
+      "PowerShell(python scripts/end_session.py --check-only 2>&1 | Select-Object -Skip 10 -First 20)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(git status *)"
+    ]
+  }
+}

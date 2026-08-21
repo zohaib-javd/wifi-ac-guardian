@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Wifi } from 'lucide-react';
 
 interface HeroCardProps {
   statusText?: string;
@@ -58,6 +58,11 @@ export default function HeroCard({
           <p className="mt-1.5 text-[11px] text-[#6B7280]">
             Continuous link quality protection against router bit-rate downgrades.
           </p>
+          <div className="mt-3 border-t border-[#2A2F33]" />
+          <div className="mt-2.5 flex items-center space-x-2">
+            <Wifi className="w-3.5 h-3.5 text-[#22C55E]/60" />
+            <span className="text-[11px] text-[#22C55E]/60 font-medium">High-Speed Wi-Fi 5+ Protection Service</span>
+          </div>
         </div>
       </div>
 

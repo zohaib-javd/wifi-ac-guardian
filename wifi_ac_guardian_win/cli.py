@@ -67,10 +67,10 @@ def main(args: Optional[List[str]] = None) -> int:
     parser.add_argument("-s", "--status", action="store_true", help="Display current status report.")
     parser.add_argument("-d", "--daemon", action="store_true", help="Run background monitoring daemon.")
     parser.add_argument("-r", "--reconnect", action="store_true", help="Force immediate reconnection attempt.")
-    parser.add_argument("-i", "--interface", type=str, default="Wi-Fi", help="Target wireless interface name.")
+    parser.add_argument("-i", "--interface", type=str, default=None, help="Target wireless interface name.")
     parser.add_argument("--target-ssid", type=str, default="", help="Target SSID to lock onto.")
-    parser.add_argument("-t", "--interval", type=float, default=15.0, help="Poll interval in seconds.")
-    parser.add_argument("--max-attempts", type=int, default=0, help="Max reconnection retries (0 = Unlimited).")
+    parser.add_argument("-t", "--interval", type=float, default=None, help="Poll interval in seconds.")
+    parser.add_argument("--max-attempts", type=int, default=None, help="Max reconnection retries.")
     parser.add_argument("--no-tray", action="store_true", help="Disable Python system tray icon.")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
@@ -131,8 +131,10 @@ def main(args: Optional[List[str]] = None) -> int:
             config.interface = parsed.interface
         if parsed.target_ssid:
             config.target_ssid = parsed.target_ssid
-        config.check_interval = parsed.interval
-        config.max_attempts = parsed.max_attempts
+        if parsed.interval is not None:
+            config.check_interval = parsed.interval
+        if parsed.max_attempts is not None:
+            config.max_attempts = parsed.max_attempts
         if parsed.no_tray:
             config.enable_tray = False
 

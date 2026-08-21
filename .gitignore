@@ -125,3 +125,18 @@ wifi_ac_guardian_win.log
 ._*
 .Spotlight-V100
 .Trashes
+
+# --- build artifacts (added during cleanup) ---
+wifi-guardian-ui/node_modules/
+wifi-guardian-ui/.next/
+wifi-guardian-ui/out/
+wifi-guardian-ui/build_app/
+wifi-guardian-ui/tsconfig.tsbuildinfo
+wifi-guardian-ui/*.log
+**/__pycache__/
+.pytest_cache/
+*.egg-info/
+*.bak-*
+
+# Release binaries are published as GitHub Release assets, not tracked in git
+releases/

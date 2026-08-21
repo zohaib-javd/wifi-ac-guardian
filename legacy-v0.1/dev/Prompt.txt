@@ -1,0 +1,140 @@
+Build a production-quality Ubuntu desktop application named "WiFi AC Guardian".
+
+Goal:
+Continuously ensure the current Wi-Fi connection is negotiated using Wi-Fi 5 (802.11ac / VHT). If the connection falls back to Wi-Fi 4 (802.11n/HT) or another slower PHY mode, automatically reconnect until the connection uses Wi-Fi 5 again.
+
+Requirements
+
+Platform:
+- Ubuntu 22.04+
+- Python 3.12+
+- NetworkManager
+- systemd
+
+Do NOT require root except where absolutely necessary.
+
+Use:
+- nmcli
+- iw
+- subprocess
+- notify-send
+- logging
+
+Features
+
+1. Auto-detect wireless interface.
+
+2. Every 10 seconds run:
+
+    iw dev <interface> link
+
+3. Parse:
+- connected state
+- frequency
+- bitrate
+- VHT / HE / EHT / HT
+
+4. Consider the connection GOOD only if:
+- output contains "VHT"
+OR
+- connection is identified as 802.11ac
+
+5. If not GOOD:
+
+- log warning
+- disconnect Wi-Fi
+- wait 2 seconds
+- reconnect using NetworkManager
+- wait until connected
+- verify again
+- continue until VHT is detected
+
+6. Desktop notifications:
+
+Green:
+Connected using Wi-Fi 5 (802.11ac)
+
+Yellow:
+Detected Wi-Fi 4 (802.11n)
+Retrying...
+
+Red:
+Unable to obtain Wi-Fi 5 after 10 attempts.
+
+7. Logging
+
+Store:
+
+~/wifi_ac_guardian.log
+
+Include timestamps.
+
+8. System tray
+
+Show icon:
+
+Green
+802.11ac
+
+Yellow
+Retrying
+
+Red
+Disconnected
+
+9. CLI
+
+wifi-ac-guardian --status
+
+Outputs:
+
+Current SSID
+Frequency
+Channel
+Signal
+PHY Mode
+Bitrate
+Attempts
+Status
+
+10. Install
+
+Provide:
+
+install.sh
+
+which
+
+- installs dependencies
+- installs the Python package
+- creates a systemd user service
+- enables autostart
+
+11. Code Quality
+
+- Modular
+- Type hints
+- Dataclasses
+- Unit tests
+- Retry backoff
+- Graceful shutdown
+- Extensive comments
+
+12. Bonus
+
+Detect:
+- Wi-Fi 6 (HE)
+- Wi-Fi 6E
+- Wi-Fi 7 (EHT)
+
+Only force reconnection when the negotiated mode is lower than Wi-Fi 5.
+
+Produce a complete, production-ready project with README, requirements.txt, install.sh, uninstall.sh, systemd service file, tests, and packaging.
+
+create the app in /home/zohaib-javed/Documents/
+
+
+The screenshot images are in this folder, upload them in my Git Repo so that it is seen
+/home/zohaib-javed/Documents/Wifi_app
+linux_control_panel.png
+windows_control_panel.png

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -11,23 +11,81 @@ let staticServer = null;
 let statusPollInterval = null;
 let isQuitting = false;
 let currentStatusIcon = null;
+let trayProtectionRunning = false;
 
 const STATIC_PORT = 39147;
 const PYTHON_IPC_PORT = 39146;
+const STATUS_ASSET_DIR = path.join(__dirname, 'public', 'status');
 
-// Single instance lock
+ipcMain.handle('open-log-file', async () => {
+  const configPath = path.join(process.env.APPDATA || app.getPath('home'), 'wifi-ac-guardian', 'config.json');
+  let logPath = path.join(app.getPath('home'), 'wifi_ac_guardian_win.log');
+  try {
+    if (fs.existsSync(configPath)) {
+      const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (typeof savedConfig.log_file_path === 'string' && savedConfig.log_file_path.trim()) {
+        logPath = savedConfig.log_file_path;
+      }
+    }
+  } catch (error) {
+    console.log('[Electron] Could not read the Guardian log-file setting:', error.message);
+  }
+  const error = await shell.openPath(logPath);
+  return { ok: !error, error: error || null, path: logPath };
+});
+
+ipcMain.handle('open-external', async (_event, rawUrl) => {
+  try {
+    const url = new URL(String(rawUrl));
+    const safeWebsite = url.protocol === 'https:' && url.hostname === 'zeejaylab.store';
+    const safeEmail = url.protocol === 'mailto:' && url.pathname === 'zeejay.lab@gmail.com';
+    if (!safeWebsite && !safeEmail) {
+      throw new Error('This external link is not allowed.');
+    }
+    await shell.openExternal(url.href);
+    return { ok: true };
+  } catch (error) {
+    console.error('[Electron] Could not open external link:', error);
+    return { ok: false, error: error instanceof Error ? error.message : 'Unable to open the link in your default browser.' };
+  }
+});
+
+ipcMain.handle('set-login-startup', async (_event, options = {}) => {
+  try {
+    const autoStart = options.autoStart === true;
+    const startMinimized = options.startMinimized === true;
+    const loginOptions = {
+      openAtLogin: autoStart,
+      openAsHidden: startMinimized,
+      path: process.execPath,
+      args: app.isPackaged ? [] : [app.getAppPath()],
+    };
+    app.setLoginItemSettings(loginOptions);
+    const legacyShortcut = path.join(
+      process.env.APPDATA || '',
+      'Microsoft',
+      'Windows',
+      'Start Menu',
+      'Programs',
+      'Startup',
+      'WiFi AC Guardian.lnk',
+    );
+    if (legacyShortcut && fs.existsSync(legacyShortcut)) {
+      fs.unlinkSync(legacyShortcut);
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error('[Electron] Could not update login startup settings:', error);
+    return { ok: false, error: error instanceof Error ? error.message : 'Unable to update Windows startup settings.' };
+  }
+});
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  app.on('second-instance', () => showDashboard());
 }
 
 const mimeTypes = {
@@ -44,11 +102,10 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 };
 
-// Built-in static server for Next.js app
 function startStaticServer() {
   const outDir = path.join(__dirname, 'out');
   staticServer = http.createServer((req, res) => {
-    let reqPath = req.url.split('?')[0];
+    const reqPath = req.url.split('?')[0];
     let filePath = path.join(outDir, reqPath);
 
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
@@ -57,30 +114,30 @@ function startStaticServer() {
 
     fs.readFile(filePath, (err, data) => {
       if (err) {
-        fs.readFile(path.join(outDir, 'index.html'), (err2, fallbackData) => {
-          if (err2) {
+        fs.readFile(path.join(outDir, 'index.html'), (fallbackError, fallbackData) => {
+          if (fallbackError) {
             res.writeHead(404);
             res.end('Not Found');
-          } else {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(fallbackData);
+            return;
           }
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(fallbackData);
         });
-      } else {
-        const ext = path.extname(filePath).toLowerCase();
-        const contentType = mimeTypes[ext] || 'application/octet-stream';
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data);
+        return;
       }
+
+      const ext = path.extname(filePath).toLowerCase();
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+      res.end(data);
     });
   });
 
   staticServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.log(`[Electron] Port ${STATIC_PORT} bound by primary instance.`);
-    } else {
-      console.error('[Electron] Static server error:', err);
+      return;
     }
+    console.error('[Electron] Static server error:', err);
   });
 
   staticServer.listen(STATIC_PORT, '127.0.0.1', () => {
@@ -88,32 +145,29 @@ function startStaticServer() {
   });
 }
 
-// Spawn Python Guardian Backend with --no-tray (single system tray icon)
 function startPythonBackend() {
   try {
     const pythonExe = process.platform === 'win32' ? 'python' : 'python3';
     pythonProcess = spawn(pythonExe, ['-m', 'wifi_ac_guardian_win', '--daemon', '--no-tray'], {
-      cwd: path.join(__dirname, '..'),
+      cwd: app.isPackaged ? process.resourcesPath : path.join(__dirname, '..'),
       stdio: 'ignore',
       detached: false,
     });
-    console.log('[Electron] Python Guardian Engine spawned in daemon mode without tray.');
+    console.log(`[Electron] Python Guardian Engine spawned without a native tray. cwd=${app.isPackaged ? process.resourcesPath : path.join(__dirname, '..')}`);
   } catch (err) {
     console.error('[Electron] Failed to spawn Python backend:', err);
   }
 }
 
-// Set Windows App User Model ID for Taskbar Branding
 app.setAppUserModelId('com.wifiacguardian.app');
 
 function createWindow() {
   const windowIconPath = path.join(__dirname, 'public', 'icon.ico');
-
   mainWindow = new BrowserWindow({
-    width: 980,
-    height: 760,
-    minWidth: 900,
-    minHeight: 680,
+    width: 430,
+    height: 720,
+    resizable: false,
+    maximizable: false,
     backgroundColor: '#0D0F10',
     title: 'WiFi AC Guardian',
     icon: windowIconPath,
@@ -127,16 +181,23 @@ function createWindow() {
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${STATIC_PORT}`);
-
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    const configPath = path.join(process.env.APPDATA || path.join(require('os').homedir(), '.config'), 'wifi-ac-guardian', 'config.json');
+    let startMinimized = false;
+    try {
+      if (fs.existsSync(configPath)) {
+        startMinimized = JSON.parse(fs.readFileSync(configPath, 'utf-8')).start_minimized === true;
+      }
+    } catch (error) {
+      console.log('[Electron] Could not read config for start_minimized:', error.message);
+    }
+    if (!startMinimized) mainWindow.show();
   });
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow.hide();
-      return false;
     }
   });
 
@@ -145,108 +206,125 @@ function createWindow() {
   });
 }
 
-// Dynamic Single System Tray Icon (Green = Good, Red/Cross = Failed, Amber = Retrying)
-function createSystemTray() {
-  const defaultIconPath = path.join(__dirname, 'public', 'status', 'good.png');
-  const icon = nativeImage.createFromPath(defaultIconPath).resize({ width: 16, height: 16 });
-  
-  tray = new Tray(icon);
-  tray.setToolTip('WiFi AC Guardian — Protected');
-  currentStatusIcon = 'good';
+function showDashboard() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
-  const contextMenu = Menu.buildFromTemplate([
-    { label: 'WiFi AC Guardian', enabled: false },
-    { type: 'separator' },
+function statusPresentation(data) {
+  const status = String(data?.status || '').trim().toUpperCase();
+  const running = data?.protectionRunning === true;
+  const speed = Number(data?.linkSpeed || 0);
+
+  if (!running || status === 'IDLE' || status === 'STANDBY') {
+    return { iconName: 'standby.png', tooltip: 'WiFi AC Guardian — Standby', running: false };
+  }
+  if (status === 'RECONNECTING' || status === 'RETRYING') {
+    return { iconName: 'retrying.png', tooltip: 'WiFi AC Guardian — Retrying Connection', running: true };
+  }
+  if (status === 'DOWNGRADED' || status === 'FAILED' || status === 'DISCONNECTED' || data?.connected === false) {
+    return { iconName: 'failed.png', tooltip: 'WiFi AC Guardian — Protection Needs Attention', running: true };
+  }
+  if (status === 'GOOD' && data?.connected === true) {
+    return { iconName: 'good.png', tooltip: `WiFi AC Guardian — Protected${speed > 0 ? ` (${Math.round(speed)} Mbps)` : ''}`, running: true };
+  }
+  return { iconName: 'standby.png', tooltip: 'WiFi AC Guardian — Standby', running: false };
+}
+
+function rebuildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Dashboard', click: showDashboard },
     {
-      label: 'Open Dashboard',
+      label: trayProtectionRunning ? 'Stop Engine' : 'Start Engine',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createWindow();
-        }
-      },
-    },
-    {
-      label: 'Force Reconnect',
-      click: async () => {
-        try {
-          const fetch = (await import('node-fetch')).default || globalThis.fetch;
-          await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'reconnect_now' }),
-          });
-        } catch (e) {
-          console.log('[Tray] Reconnect error:', e);
-        }
+        void toggleEngineFromTray();
       },
     },
     { type: 'separator' },
     {
       label: 'Exit',
-      click: () => {
-        isQuitting = true;
-        if (pythonProcess) {
-          try {
-            pythonProcess.kill();
-          } catch (e) {}
-        }
-        if (staticServer) {
-          try {
-            staticServer.close();
-          } catch (e) {}
-        }
-        if (statusPollInterval) clearInterval(statusPollInterval);
-        app.quit();
-      },
+      click: quitApplication,
     },
-  ]);
+  ]));
+}
 
-  tray.setContextMenu(contextMenu);
-  tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+function updateTray(data) {
+  if (!tray) return;
+  const visual = statusPresentation(data);
+  trayProtectionRunning = visual.running;
+  if (currentStatusIcon !== visual.iconName) {
+    currentStatusIcon = visual.iconName;
+    const icon = nativeImage.createFromPath(path.join(STATUS_ASSET_DIR, visual.iconName)).resize({ width: 16, height: 16 });
+    tray.setImage(icon);
+  }
+  tray.setToolTip(visual.tooltip);
+  rebuildTrayMenu();
+}
 
-  // Poll Python IPC to dynamically update System Tray Icon color
-  statusPollInterval = setInterval(async () => {
+async function getGuardianStatus() {
+  const response = await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`);
+  if (!response.ok) throw new Error(`Guardian backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+async function refreshTrayStatus() {
+  try {
+    updateTray(await getGuardianStatus());
+  } catch (error) {
+    updateTray({ protectionRunning: false, status: 'IDLE' });
+  }
+}
+
+async function toggleEngineFromTray() {
+  try {
+    const response = await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_protection' }),
+    });
+    if (!response.ok) throw new Error(`Guardian backend returned HTTP ${response.status}`);
+    const result = await response.json();
+    updateTray({ protectionRunning: result.protectionRunning, status: result.protectionRunning ? 'GOOD' : 'IDLE', connected: result.protectionRunning });
+    await refreshTrayStatus();
+  } catch (error) {
+    console.error('[Tray] Unable to toggle protection:', error);
+    await refreshTrayStatus();
+  }
+}
+
+function createSystemTray() {
+  const initialIcon = nativeImage.createFromPath(path.join(STATUS_ASSET_DIR, 'standby.png')).resize({ width: 16, height: 16 });
+  tray = new Tray(initialIcon);
+  currentStatusIcon = 'standby.png';
+  tray.setToolTip('WiFi AC Guardian — Standby');
+  rebuildTrayMenu();
+  tray.on('double-click', showDashboard);
+  void refreshTrayStatus();
+  statusPollInterval = setInterval(() => {
+    void refreshTrayStatus();
+  }, 2000);
+}
+
+function quitApplication() {
+  isQuitting = true;
+  if (pythonProcess) {
     try {
-      const fetch = (await import('node-fetch')).default || globalThis.fetch;
-      const res = await fetch(`http://127.0.0.1:${PYTHON_IPC_PORT}`);
-      if (res.ok) {
-        const data = await res.json();
-        const status = (data.status || 'good').toLowerCase();
-        
-        let iconName = 'good.png';
-        let tooltipText = `WiFi AC Guardian — Protected (${data.linkSpeed || 866} Mbps)`;
-
-        if (status.includes('fail') || status.includes('disconnect')) {
-          iconName = 'failed.png';
-          tooltipText = 'WiFi AC Guardian — Reconnection Failed';
-        } else if (status.includes('retry') || status.includes('reconnect')) {
-          iconName = 'retrying.png';
-          tooltipText = 'WiFi AC Guardian — Retrying Connection...';
-        } else if (status.includes('standby') || status.includes('idle')) {
-          iconName = 'standby.png';
-          tooltipText = 'WiFi AC Guardian — Standby';
-        }
-
-        if (currentStatusIcon !== iconName) {
-          currentStatusIcon = iconName;
-          const statusIconPath = path.join(__dirname, 'public', 'status', iconName);
-          const newIcon = nativeImage.createFromPath(statusIconPath).resize({ width: 16, height: 16 });
-          tray.setImage(newIcon);
-        }
-        tray.setToolTip(tooltipText);
-      }
-    } catch (e) {
-      // IPC polling fallback
-    }
-  }, 3000);
+      pythonProcess.kill();
+    } catch (_) {}
+  }
+  if (staticServer) {
+    try {
+      staticServer.close();
+    } catch (_) {}
+  }
+  if (statusPollInterval) clearInterval(statusPollInterval);
+  app.quit();
 }
 
 app.whenReady().then(() => {
@@ -254,28 +332,25 @@ app.whenReady().then(() => {
   startPythonBackend();
   createWindow();
   createSystemTray();
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin' && isQuitting) {
-    app.quit();
-  }
+  if (process.platform !== 'darwin' && isQuitting) app.quit();
 });
 
 app.on('will-quit', () => {
   if (pythonProcess) {
     try {
       pythonProcess.kill();
-    } catch (e) {}
+    } catch (_) {}
   }
   if (staticServer) {
     try {
       staticServer.close();
-    } catch (e) {}
+    } catch (_) {}
   }
   if (statusPollInterval) clearInterval(statusPollInterval);
 });

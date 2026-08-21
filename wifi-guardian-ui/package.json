@@ -1,7 +1,10 @@
 {
   "name": "wifi-guardian-ui",
-  "version": "2.0.0",
+  "version": "2.0.5",
   "private": true,
+  "author": {
+    "name": "Zohaib Javed (Zeejay)"
+  },
   "main": "main.js",
   "scripts": {
     "dev": "next dev",
@@ -14,6 +17,7 @@
   "build": {
     "appId": "com.wifiacguardian.app",
     "productName": "WiFi AC Guardian",
+    "copyright": "Copyright © 2026 Zohaib Javed (Zeejay)",
     "files": [
       "main.js",
       "preload.js",
@@ -21,23 +25,43 @@
       "public/**/*"
     ],
     "directories": {
-      "output": "dist_app"
+      "output": "build_app"
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "portable",
+        "nsis"
       ],
-      "icon": "public/router.png"
-    }
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "public/router.png",
+      "category": "Utility"
+    },
+    "extraResources": [
+      {
+        "from": "../wifi_ac_guardian_win",
+        "to": "wifi_ac_guardian_win"
+      }
+    ]
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.475.0",
-    "next": "^15.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "next": "^16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "tailwind-merge": "^3.0.1",
     "zustand": "^5.0.3"
   },
