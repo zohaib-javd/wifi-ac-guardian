@@ -19,6 +19,7 @@ body {
   font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   user-select: none;
   overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* Custom Scrollbar */

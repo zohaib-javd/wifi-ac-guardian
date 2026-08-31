@@ -3,6 +3,7 @@ Windows Toast Notifications Manager using PowerShell / Win10Toast.
 """
 
 import subprocess
+import winsound
 from typing import Optional
 from wifi_ac_guardian_win.core.models import StatusState, LinkInfo
 from wifi_ac_guardian_win.logger import get_logger
@@ -13,9 +14,10 @@ logger = get_logger()
 class WindowsNotifier:
     """Sends native Windows 11 Toast notifications."""
 
-    def __init__(self, enabled: bool = False, quiet_mode: bool = True):
+    def __init__(self, enabled: bool = False, quiet_mode: bool = True, sound_enabled: bool = False):
         self.enabled = enabled
         self.quiet_mode = quiet_mode
+        self.sound_enabled = sound_enabled
         self.last_status: Optional[StatusState] = None
 
     def notify_status(
@@ -59,6 +61,11 @@ class WindowsNotifier:
             return
 
         self.send_toast(title, body)
+        if self.sound_enabled:
+            try:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            except Exception:
+                pass
 
     def send_toast(self, title: str, body: str) -> bool:
         """Sends native Windows Toast via PowerShell script."""

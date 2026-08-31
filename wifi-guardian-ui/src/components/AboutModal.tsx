@@ -14,7 +14,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-[480px] bg-[#16181A] border border-[#2A2F33] rounded-2xl p-6 shadow-2xl space-y-4">
+      <div className="w-full max-w-[390px] bg-[#16181A] border border-[#2A2F33] rounded-2xl p-5 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-[#2A2F33] pb-3">
           <div className="flex items-center space-x-3">
             <Image src="/router.png" alt="Router Icon" width={36} height={36} className="object-contain" />
@@ -29,12 +29,33 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
         </div>
 
         <div className="p-4 rounded-xl bg-[#1E2124] border border-[#2A2F33] text-xs text-[#A1A7AE] space-y-2">
-          <p className="font-bold text-[#F2F4F7]">Created by Zohaib Javed</p>
+          <p className="font-bold text-[#F2F4F7]">Engineered by Zohaib Javed aka Zeejay</p>
           <p>
-            WiFi AC Guardian is a commercial high-speed Wi-Fi 5+ protection service designed for Windows 11 & Ubuntu 26.04 LTS.
+            Router firmware and band-steering quietly downgrade your Wi-Fi to 802.11n, even on hardware that supports Wi-Fi 5+.
           </p>
           <p>
-            It continuously monitors radio link sync rates (&gt;300 Mbps) and automatically performs hardware resets whenever link quality drops.
+            WiFi AC Guardian watches your link in the background and forces a clean radio reset the moment it drops below 300 Mbps, restoring full-speed AC/AX/BE performance without you touching a setting.
+          </p>
+          <p>Windows 11 and Ubuntu 26.04 LTS.</p>
+          <p>
+            More at:{' '}
+            <a
+              href="https://zeejaylab.store"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-[#34d399] underline underline-offset-2 hover:text-[#6ee7b7]"
+            >
+              zeejaylab.store
+            </a>
+          </p>
+          <p>
+            Email:{' '}
+            <a
+              href="mailto:zeejay.lab@gmail.com"
+              className="font-semibold text-[#34d399] underline underline-offset-2 hover:text-[#6ee7b7]"
+            >
+              zeejay.lab@gmail.com
+            </a>
           </p>
         </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, RotateCcw, Activity } from 'lucide-react';
+import { Shield, RotateCcw, Activity, Pause } from 'lucide-react';
 
 interface ProtectionEngineCardProps {
   networkSsid?: string;
@@ -77,18 +77,13 @@ export default function ProtectionEngineCard({
           </div>
         </div>
 
-        {/* Current Network Row */}
-        <div className="p-3 rounded-lg bg-[#1E2124] border border-[#2A2F33] flex items-center justify-between">
-          <span className="text-xs text-[#A1A7AE]">Current Network:</span>
-          <span className="text-xs font-bold text-[#F2F4F7]">{networkSsid} (SSID)</span>
-        </div>
       </div>
 
       {/* Action Buttons */}
       <div className="space-y-2 mt-1">
         <button
           onClick={onReconnect}
-          className="w-full py-2.5 px-4 rounded-lg bg-[#22C55E] hover:bg-[#2BE06B] text-[#051D0D] text-xs font-bold transition-all shadow-lg shadow-[#22C55E]/10 flex items-center justify-center space-x-2"
+          className="w-full py-2.5 px-4 rounded-lg border border-[#22C55E] text-[#22C55E] bg-transparent hover:bg-[#22C55E] hover:text-[#051D0D] text-xs font-bold transition-all flex items-center justify-center space-x-2"
         >
           <RotateCcw className="w-4 h-4" />
           <span>Reconnect now</span>
@@ -96,9 +91,9 @@ export default function ProtectionEngineCard({
 
         <button
           onClick={onToggleProtection}
-          className="w-full py-2 px-4 rounded-lg bg-[#EF4444] hover:bg-[#F87171] text-white text-xs font-bold transition-colors flex items-center justify-center space-x-2"
+          className="w-full py-2 px-4 rounded-lg border border-[#F59E0B] text-[#F59E0B] bg-transparent hover:bg-[#F59E0B] hover:text-[#121212] text-xs font-bold transition-colors flex items-center justify-center space-x-2"
         >
-          <Shield className="w-4 h-4" />
+          <Pause className="w-4 h-4" />
           <span>Stop protection</span>
         </button>
       </div>

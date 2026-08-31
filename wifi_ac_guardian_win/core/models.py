@@ -36,6 +36,7 @@ class LinkInfo:
     """Detailed information parsed from 'netsh wlan show interfaces' output on Windows."""
     connected: bool = False
     interface: str = "Wi-Fi"
+    adapter: Optional[str] = None
     bssid: Optional[str] = None
     ssid: Optional[str] = None
     freq_mhz: Optional[float] = None
@@ -62,24 +63,29 @@ class LinkInfo:
                         pass
         return max(rates) if rates else 0.0
 
-    @property
-    def is_good(self) -> bool:
+    def is_good(self, min_bitrate_threshold: float = 300.0) -> bool:
         """
         Returns True if:
         1. Connected
         2. PHY mode is Wi-Fi 5 (VHT), Wi-Fi 6 (HE), or Wi-Fi 7 (EHT)
-        3. Transmit/Receive Bitrate is strictly GREATER than 300.0 Mbps (> 300.0 Mbps)
+        3. Transmit/Receive Bitrate is at least the min_bitrate_threshold
         """
         if not self.connected:
             return False
         phy_ok = self.phy_mode in (PhyMode.VHT, PhyMode.HE, PhyMode.EHT)
-        bitrate_ok = self.max_bitrate_mbps > 300.0
+        bitrate_ok = self.max_bitrate_mbps >= min_bitrate_threshold
         return phy_ok and bitrate_ok
 
     @property
     def phy_summary(self) -> str:
         """Returns concise human-readable description of PHY mode."""
-        return self.phy_mode.value
+        labels = {
+            PhyMode.VHT: "Wi-Fi 5 (802.11ac)",
+            PhyMode.HE: "Wi-Fi 6/6E (802.11ax)",
+            PhyMode.EHT: "Wi-Fi 7 (802.11be)",
+            PhyMode.HT: "Wi-Fi 4 (802.11n)",
+        }
+        return labels.get(self.phy_mode, self.phy_mode.value)
 
 
 @dataclass
@@ -89,15 +95,17 @@ class GuardianConfig:
     target_ssid: str = "lab5g"            # Default primary protected network (e.g. lab5g)
     auto_switch_primary: bool = True      # Automatically switch back to primary when back online
     auto_start: bool = True               # Start WiFi AC Guardian when Windows starts
-    check_interval: float = 10.0          # Dynamic internal poll interval
+    check_interval: float = 30.0          # Dynamic internal poll interval
     reconnect_delay: float = 15.0         # Hardware adapter radio stabilization delay
-    max_attempts: int = 99                # Connection retry attempts limit (99)
+    max_attempts: int = 50                # Connection retry attempts limit
+    min_bitrate_threshold: float = 300.0  # Minimum required link speed in Mbps
     log_file_path: str = os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")
     enable_notifications: bool = False    # False by default
     enable_tray: bool = True
     start_minimized: bool = False         # Start the UI hidden in the system tray
     is_paused: bool = False
     animations_enabled: bool = False      # UI micro-animations (presentation-only); OFF until validated
+    sound_alerts: bool = False            # Play Windows alert sound on reconnection events
 
 
 @dataclass

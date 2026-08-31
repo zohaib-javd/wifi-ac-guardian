@@ -95,15 +95,17 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
                 target_ssid=data.get("target_ssid", "lab5g"),
                 auto_switch_primary=bool(data.get("auto_switch_primary", True)),
                 auto_start=bool(data.get("auto_start", True)),
-                check_interval=float(data.get("check_interval", 10.0)),
+                check_interval=float(data.get("check_interval", 30.0)),
                 reconnect_delay=float(data.get("reconnect_delay", 15.0)),
-                max_attempts=int(data.get("max_attempts", 99)),
+                max_attempts=int(data.get("max_attempts", 50)),
+                min_bitrate_threshold=float(data.get("min_bitrate_threshold", 300.0)),
                 log_file_path=data.get("log_file_path", os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")),
                 enable_notifications=bool(data.get("enable_notifications", False)),
                 enable_tray=bool(data.get("enable_tray", True)),
                 start_minimized=bool(data.get("start_minimized", False)),
                 is_paused=bool(data.get("is_paused", False)),
                 animations_enabled=bool(data.get("animations_enabled", False)),
+                sound_alerts=bool(data.get("sound_alerts", False)),
             )
         except Exception as e:
             logger.warning(f"Error loading config: {e}. Using defaults.")
@@ -111,7 +113,11 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
     return GuardianConfig()
 
 
-def save_config(config: GuardianConfig, config_path: Optional[str] = None) -> str:
+def save_config(
+    config: GuardianConfig,
+    config_path: Optional[str] = None,
+    sync_startup_shortcut: bool = True,
+) -> str:
     target_path = os.path.expanduser(config_path) if config_path else CONFIG_FILE
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
@@ -123,16 +129,19 @@ def save_config(config: GuardianConfig, config_path: Optional[str] = None) -> st
         "check_interval": config.check_interval,
         "reconnect_delay": config.reconnect_delay,
         "max_attempts": config.max_attempts,
+        "min_bitrate_threshold": config.min_bitrate_threshold,
         "log_file_path": config.log_file_path,
         "enable_notifications": config.enable_notifications,
         "enable_tray": config.enable_tray,
         "start_minimized": config.start_minimized,
         "is_paused": config.is_paused,
         "animations_enabled": config.animations_enabled,
+        "sound_alerts": config.sound_alerts,
     }
 
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-    sync_autostart_shortcut(config.auto_start)
+    if sync_startup_shortcut:
+        sync_autostart_shortcut(config.auto_start)
     return target_path

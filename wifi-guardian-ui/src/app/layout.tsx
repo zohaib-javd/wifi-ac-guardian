@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'WiFi AC Guardian — Commercial Desktop Edition',
+  title: 'WiFi AC Guardian',
   description: 'High-Speed Wi-Fi 5+ Protection Service for Windows 11',
 };
 
