@@ -124,7 +124,9 @@ def main(args: Optional[List[str]] = None) -> int:
         checker = SingleInstanceChecker()
         if not checker.try_claim_single_instance():
             print("WiFi AC Guardian is already running in the background.")
-            return 0
+            # Distinct sentinel (not 0) so the Electron watchdog can tell this
+            # deliberate hand-off apart from a real crash and skip respawning.
+            return 78
 
         config = load_config()
         if parsed.interface:

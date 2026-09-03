@@ -21,6 +21,9 @@ class PhyMode(Enum):
     UNKNOWN = "Unknown"
 
 
+APPROVED_PHY_MODES = frozenset({PhyMode.VHT, PhyMode.HE, PhyMode.EHT})
+
+
 class StatusState(Enum):
     """Enumeration of overall Guardian monitoring and tray status."""
     GOOD = "GOOD"                           # Green: Primary Wi-Fi 5+ active (> 300 Mbps)
@@ -31,11 +34,43 @@ class StatusState(Enum):
     IDLE = "IDLE"                          # Blue: Paused or Initializing
 
 
+class RadioState(Enum):
+    """Availability of the Windows Wi-Fi radio/interface reported by the OS."""
+    ACTIVE = "active"                      # Connected Wi-Fi link is active
+    DISCONNECTED = "disconnected"          # Adapter exists but has no Wi-Fi link
+    RADIO_OFF = "radio_off"                # Wi-Fi radio is unavailable (including Airplane Mode)
+    ADAPTER_DISABLED = "adapter_disabled"  # User or policy disabled the Wi-Fi adapter
+    NO_ADAPTER = "no_adapter"              # Windows reports no usable Wi-Fi adapter
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class BssidCandidate:
+    """One BSSID observed during a Windows WLAN network inventory."""
+
+    ssid: str
+    bssid: str
+    channel: Optional[int] = None
+    signal_pct: Optional[int] = None
+    radio_type: str = ""
+    phy_mode: PhyMode = PhyMode.UNKNOWN
+
+    @property
+    def band(self) -> str:
+        if self.channel is None:
+            return "unknown"
+        if 1 <= self.channel <= 14:
+            return "2.4GHz"
+        if self.channel >= 181:
+            return "6GHz"
+        return "5GHz"
+
+
 @dataclass
 class LinkInfo:
     """Detailed information parsed from 'netsh wlan show interfaces' output on Windows."""
     connected: bool = False
-    interface: str = "Wi-Fi"
+    interface: str = ""
     adapter: Optional[str] = None
     bssid: Optional[str] = None
     ssid: Optional[str] = None
@@ -46,35 +81,65 @@ class LinkInfo:
     tx_bitrate: Optional[str] = None
     phy_mode: PhyMode = PhyMode.UNKNOWN
     radio_type: str = ""
+    radio_state: RadioState = RadioState.UNKNOWN
     raw_output: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
 
     @property
     def max_bitrate_mbps(self) -> float:
         """Returns the highest numerical bitrate (Tx or Rx) parsed from link info."""
-        rates = []
-        for rate_str in (self.tx_bitrate, self.rx_bitrate):
-            if rate_str:
-                match = re.search(r"(\d+(?:\.\d+)?)", rate_str)
-                if match:
-                    try:
-                        rates.append(float(match.group(1)))
-                    except ValueError:
-                        pass
+        rates = [rate for rate in (self.tx_bitrate_mbps, self.rx_bitrate_mbps) if rate > 0]
         return max(rates) if rates else 0.0
+
+    @staticmethod
+    def _parse_bitrate(value: Optional[str]) -> float:
+        if not value:
+            return 0.0
+        match = re.search(r"(\d+(?:\.\d+)?)", value)
+        if not match:
+            return 0.0
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return 0.0
+
+    @property
+    def tx_bitrate_mbps(self) -> float:
+        """Return the numeric transmit bitrate reported by Windows, if present."""
+        return self._parse_bitrate(self.tx_bitrate)
+
+    @property
+    def rx_bitrate_mbps(self) -> float:
+        """Return the numeric receive bitrate reported by Windows, if present."""
+        return self._parse_bitrate(self.rx_bitrate)
+
+    def has_approved_phy(self) -> bool:
+        """True when Windows reports a connected Wi-Fi 5, 6, or 7 link."""
+        return self.connected and self.phy_mode in APPROVED_PHY_MODES
 
     def is_good(self, min_bitrate_threshold: float = 300.0) -> bool:
         """
         Returns True if:
         1. Connected
         2. PHY mode is Wi-Fi 5 (VHT), Wi-Fi 6 (HE), or Wi-Fi 7 (EHT)
-        3. Transmit/Receive Bitrate is at least the min_bitrate_threshold
+        3. Every available directional bitrate is strictly greater than the
+           configured threshold. When Windows reports only one direction, that
+           single measured bitrate is used.
         """
-        if not self.connected:
+        if not self.has_approved_phy():
             return False
-        phy_ok = self.phy_mode in (PhyMode.VHT, PhyMode.HE, PhyMode.EHT)
-        bitrate_ok = self.max_bitrate_mbps >= min_bitrate_threshold
-        return phy_ok and bitrate_ok
+        tx_rate = self.tx_bitrate_mbps
+        rx_rate = self.rx_bitrate_mbps
+        if tx_rate > 0 and rx_rate > 0:
+            bitrate_ok = tx_rate > min_bitrate_threshold and rx_rate > min_bitrate_threshold
+        else:
+            bitrate_ok = self.max_bitrate_mbps > min_bitrate_threshold
+        return bitrate_ok
+
+    @property
+    def has_available_adapter(self) -> bool:
+        """True only when Windows reports a Wi-Fi adapter/radio that can be used."""
+        return self.radio_state in {RadioState.ACTIVE, RadioState.DISCONNECTED}
 
     @property
     def phy_summary(self) -> str:
@@ -91,13 +156,13 @@ class LinkInfo:
 @dataclass
 class GuardianConfig:
     """Configuration settings for the Wi-Fi monitoring service on Windows."""
-    interface: Optional[str] = None       # None = auto-detect or 'Wi-Fi'
-    target_ssid: str = "lab5g"            # Default primary protected network (e.g. lab5g)
+    interface: Optional[str] = None       # None = dynamically select the active Windows Wi-Fi interface
+    target_ssid: str = ""                 # Empty = adopt the currently connected SSID for this session
     auto_switch_primary: bool = True      # Automatically switch back to primary when back online
     auto_start: bool = True               # Start WiFi AC Guardian when Windows starts
     check_interval: float = 30.0          # Dynamic internal poll interval
-    reconnect_delay: float = 15.0         # Hardware adapter radio stabilization delay
-    max_attempts: int = 50                # Connection retry attempts limit
+    reconnect_delay: float = 3.5          # Default radio OFF hold for bounded native auto-association cycles
+    max_attempts: int = 0                 # 0 = unlimited recovery attempts
     min_bitrate_threshold: float = 300.0  # Minimum required link speed in Mbps
     log_file_path: str = os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")
     enable_notifications: bool = False    # False by default
@@ -106,6 +171,7 @@ class GuardianConfig:
     is_paused: bool = False
     animations_enabled: bool = False      # UI micro-animations (presentation-only); OFF until validated
     sound_alerts: bool = False            # Play Windows alert sound on reconnection events
+    preferred_bssids: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 @dataclass
@@ -117,4 +183,7 @@ class GuardianState:
     attempts_count: int = 0
     last_check: Optional[datetime] = None
     last_reconnect: Optional[datetime] = None
+    next_check: Optional[datetime] = None
     running: bool = False
+    recovery_active: bool = False
+    recovery_status: str = ""
