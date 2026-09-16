@@ -6,7 +6,7 @@ import os
 import json
 from typing import Optional
 from wifi_ac_guardian_win.core.models import GuardianConfig
-from wifi_ac_guardian_win.logger import get_logger
+from wifi_ac_guardian_win.logger import DEFAULT_LOG_FILE_PATH, get_logger
 
 logger = get_logger()
 
@@ -18,6 +18,12 @@ else:
 
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 APP_ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "wifi_ac_guardian.ico")
+SETTINGS_SCHEMA_VERSION = 6
+
+# The pre-6.0 default dumped rolling logs directly into the user's profile
+# root. Any config still carrying that legacy value is migrated to the new
+# dedicated log directory the first time it loads under the current schema.
+_LEGACY_HOME_LOG_FILE_PATH = os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")
 
 
 import sys
@@ -67,15 +73,6 @@ def sync_autostart_shortcut(enable: bool) -> None:
                 logger.error(f"Failed to remove autostart shortcut: {e}")
 
 
-def sync_desktop_shortcut() -> None:
-    """Create the desktop shortcut with the bundled Fluent shield icon."""
-    desktop_path = os.path.join(os.path.expanduser("~"), "Desktop", "WiFi AC Guardian.lnk")
-    _write_shortcut(desktop_path, "-m wifi_ac_guardian_win --gui", "WiFi AC Guardian")
-    apps_shortcuts = os.path.join(os.path.expanduser("~"), "Desktop", "Apps Shortcuts")
-    if os.path.isdir(apps_shortcuts):
-        _write_shortcut(os.path.join(apps_shortcuts, "WiFi AC Guardian.lnk"), "-m wifi_ac_guardian_win --gui", "WiFi AC Guardian")
-
-
 def load_config(config_path: Optional[str] = None) -> GuardianConfig:
     target_path = os.path.expanduser(config_path) if config_path else CONFIG_FILE
 
@@ -90,22 +87,54 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
             with open(target_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
+            stored_interface = (data.get("interface") or "").strip()
+            # Previous builds saved the generic Windows default "Wi-Fi" even
+            # though it was not chosen by the customer. Treat that legacy value
+            # as auto-detect so an OEM-renamed adapter can be selected natively.
+            if stored_interface.lower() == "wi-fi":
+                stored_interface = ""
+
+            stored_schema_version = int(data.get("settings_schema_version", 1))
+            stored_reconnect_delay = float(data.get("reconnect_delay", 3.5))
+            stored_preferences = data.get("preferred_bssids", {})
+            if not isinstance(stored_preferences, dict):
+                stored_preferences = {}
+            # Migrate prior factory defaults once while preserving a choice
+            # explicitly saved by the current or a newer settings schema.
+            if stored_schema_version < 3 and stored_reconnect_delay == 30.0:
+                logger.info("Migrating legacy 30-second recovery default to the v1.2.0 six-second default.")
+                stored_reconnect_delay = 6.0
+            if stored_schema_version < SETTINGS_SCHEMA_VERSION and stored_reconnect_delay == 6.0:
+                logger.info("Migrating prior six-second recovery default to the native auto-association 65-second default.")
+                stored_reconnect_delay = 65.0
+            if stored_schema_version < SETTINGS_SCHEMA_VERSION and stored_reconnect_delay == 65.0:
+                logger.info("Migrating prior 65-second recovery default to the bounded 3.5-second micro-cycle default.")
+                stored_reconnect_delay = 3.5
+
+            stored_log_file_path = data.get("log_file_path", DEFAULT_LOG_FILE_PATH)
+            if stored_schema_version < SETTINGS_SCHEMA_VERSION and stored_log_file_path == _LEGACY_HOME_LOG_FILE_PATH:
+                logger.info("Migrating rolling logs out of the profile root into the dedicated log directory.")
+                stored_log_file_path = DEFAULT_LOG_FILE_PATH
+
             return GuardianConfig(
-                interface=data.get("interface", "Wi-Fi"),
-                target_ssid=data.get("target_ssid", "lab5g"),
+                interface=stored_interface or None,
+                target_ssid=(data.get("target_ssid") or "").strip(),
                 auto_switch_primary=bool(data.get("auto_switch_primary", True)),
                 auto_start=bool(data.get("auto_start", True)),
                 check_interval=float(data.get("check_interval", 30.0)),
-                reconnect_delay=float(data.get("reconnect_delay", 15.0)),
-                max_attempts=int(data.get("max_attempts", 50)),
+                reconnect_delay=stored_reconnect_delay,
+                max_attempts=max(0, int(data.get("max_attempts", 0))),
                 min_bitrate_threshold=float(data.get("min_bitrate_threshold", 300.0)),
-                log_file_path=data.get("log_file_path", os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")),
+                vht_grace_period=float(data.get("vht_grace_period", 15.0)),
+                recovery_cooldown=float(data.get("recovery_cooldown", 30.0)),
+                log_file_path=stored_log_file_path,
                 enable_notifications=bool(data.get("enable_notifications", False)),
                 enable_tray=bool(data.get("enable_tray", True)),
                 start_minimized=bool(data.get("start_minimized", False)),
                 is_paused=bool(data.get("is_paused", False)),
                 animations_enabled=bool(data.get("animations_enabled", False)),
                 sound_alerts=bool(data.get("sound_alerts", False)),
+                preferred_bssids=stored_preferences,
             )
         except Exception as e:
             logger.warning(f"Error loading config: {e}. Using defaults.")
@@ -122,6 +151,7 @@ def save_config(
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
     data = {
+        "settings_schema_version": SETTINGS_SCHEMA_VERSION,
         "interface": config.interface,
         "target_ssid": config.target_ssid,
         "auto_switch_primary": config.auto_switch_primary,
@@ -130,6 +160,8 @@ def save_config(
         "reconnect_delay": config.reconnect_delay,
         "max_attempts": config.max_attempts,
         "min_bitrate_threshold": config.min_bitrate_threshold,
+        "vht_grace_period": config.vht_grace_period,
+        "recovery_cooldown": config.recovery_cooldown,
         "log_file_path": config.log_file_path,
         "enable_notifications": config.enable_notifications,
         "enable_tray": config.enable_tray,
@@ -137,6 +169,7 @@ def save_config(
         "is_paused": config.is_paused,
         "animations_enabled": config.animations_enabled,
         "sound_alerts": config.sound_alerts,
+        "preferred_bssids": config.preferred_bssids,
     }
 
     with open(target_path, "w", encoding="utf-8") as f:

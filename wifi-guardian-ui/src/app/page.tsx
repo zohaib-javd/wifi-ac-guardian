@@ -1,7 +1,9 @@
 'use client';
 
+/* WiFi AC Guardian design: compact dark utility controls, truthful live telemetry, and emerald only for an actively protected link. */
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Wifi, Settings, Router as RouterLucide, Shield, Timer, Power } from 'lucide-react';
+import { Wifi, Settings, Router as RouterLucide, Shield, Power } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -34,7 +36,19 @@ function normalizeWifiTechnology(value: unknown) {
     "802.11be (Wi-Fi 7)": "Wi-Fi 7 (802.11be)",
     "802.11n (Wi-Fi 4)": "Wi-Fi 4 (802.11n)",
   };
-  return labels[text] || text || "Wi-Fi 5 (802.11ac)";
+  return labels[text] || text || "Unknown";
+}
+
+function parseMbps(value: unknown) {
+  const matched = typeof value === "string" ? value.match(/\d+(?:\.\d+)?/) : null;
+  return matched ? Number(matched[0]) : 0;
+}
+
+function unavailableTechnology(radioState: string) {
+  if (radioState === "radio_off") return "Wi-Fi radio off (Airplane Mode or Wi-Fi switch)";
+  if (radioState === "adapter_disabled") return "Adapter disabled";
+  if (radioState === "no_adapter") return "No adapter detected";
+  return "Disconnected";
 }
 
 const SMOOTHING_K = 0.22;
@@ -44,30 +58,35 @@ const API_URL = 'http://127.0.0.1:39146';
 function useBackendData() {
   const [data, setData] = useState({
     connected: false,
-    ssid: "lab5g",
-    linkSpeed: 650,
-    signalPct: 95,
-    txBitrate: "433 Mbps",
-    rxBitrate: "650 Mbps",
-    phyMode: "Wi-Fi 5 (802.11ac)",
-    adapter: "Intel(R) Wi-Fi 6 AX201 160MHz",
-    band: "5 GHz (161)",
+    ssid: "",
+    linkSpeed: 0,
+    signalPct: 0,
+    txBitrate: "",
+    rxBitrate: "",
+    phyMode: "Unknown",
+    adapter: "",
+    radioState: "unknown",
+    band: "",
     status: "paused",
-    reconnectAttempts: 0,
-    maxAttempts: 99,
     protectionRunning: true,
     lastRecovery: "Never",
     backendOnline: false,
+    backendInitialized: false,
     backendError: "",
     minBitrateThreshold: 300,
-    checkInterval: 10,
-    reconnectDelay: 15,
+    checkInterval: 30,
+    vhtGracePeriod: 15,
+    recoveryCooldown: 30,
     autoSwitchPrimary: true,
     enableNotifications: false,
     enableSoundAlerts: false,
     autoStart: true,
     startMinimized: false,
-    targetSsid: "lab5g",
+    targetSsid: "",
+    recoveryActive: false,
+    recoveryStatus: "",
+    recoveryStartTime: null as string | null,
+    recoveryAttemptCount: 0,
     availableSsids: [] as string[]
   });
 
@@ -83,12 +102,14 @@ function useBackendData() {
             rxBitrate: telemetry.rxBitrate || `${telemetry.linkSpeed} Mbps`,
             availableSsids: telemetry.available_ssids || [],
             backendOnline: true,
+            backendInitialized: true,
             backendError: ""
           }));
         } else {
           setData(prev => ({
             ...prev,
             backendOnline: false,
+            backendInitialized: true,
             backendError: `Guardian backend returned HTTP ${res.status}.`
           }));
         }
@@ -96,6 +117,7 @@ function useBackendData() {
         setData(prev => ({
           ...prev,
           backendOnline: false,
+          backendInitialized: true,
           backendError: "Guardian backend is unavailable."
         }));
       }
@@ -111,8 +133,8 @@ function useBackendData() {
       ...prev,
       targetSsid: settings.targetSsid,
       checkInterval: settings.checkInterval,
-      reconnectDelay: settings.reconnectDelay,
-      maxAttempts: settings.maxAttempts,
+      vhtGracePeriod: settings.vhtGracePeriod,
+      recoveryCooldown: settings.recoveryCooldown,
       minBitrateThreshold: settings.minBitrateThreshold,
       autoSwitchPrimary: settings.autoSwitchPrimary,
       enableNotifications: settings.enableNotifications,
@@ -150,7 +172,7 @@ function useSmoothedValue(target: number, k: number = SMOOTHING_K) {
 }
 
 function formatRecovery(value: unknown) {
-  if (!value) return "Never";
+  if (!value) return "None (Session Stable)";
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -160,7 +182,7 @@ function formatRecovery(value: unknown) {
 // COMPONENTS
 // ----------------------------------------------------------------------------
 function SignalBars({ percent }: { percent: number }) {
-  let activeBars = 1;
+  let activeBars = percent > 0 ? 1 : 0;
   if (percent >= 80) activeBars = 5;
   else if (percent >= 60) activeBars = 4;
   else if (percent >= 40) activeBars = 3;
@@ -265,32 +287,8 @@ export default function Home() {
     }
   }, [telemetry.backendOnline, telemetry.protectionRunning]);
 
-  const [countdown, setCountdown] = useState(5);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    // Fully clear any previous interval whenever state changes
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current);
-      countdownRef.current = null;
-    }
-
-    if (engineState !== "protected") {
-      setCountdown(5);
-      return;
-    }
-
-    countdownRef.current = setInterval(() => {
-      setCountdown(c => (c <= 1 ? 5 : c - 1));
-    }, 1000);
-
-    return () => {
-      if (countdownRef.current) {
-        clearInterval(countdownRef.current);
-        countdownRef.current = null;
-      }
-    };
-  }, [engineState]);
+  const isRecovering = telemetry.recoveryActive === true;
+  const hasRecoveryHistory = Boolean(telemetry.recoveryStartTime);
 
   const smoothedSpeed = useSmoothedValue(telemetry.linkSpeed);
   const percentage = Math.min(100, Math.max(0, (smoothedSpeed / MAX_SPEED) * 100));
@@ -380,16 +378,23 @@ export default function Home() {
   const thresholdPercentage = Math.min(100, Math.max(0, (protectedThreshold / MAX_SPEED) * 100));
   const cautionEndPercentage = Math.min(100, thresholdPercentage + 7);
 
-  // ConnectionInfo Object logic
+  // ConnectionInfo is derived from the current backend state only. No previous
+  // link values are shown after the user disconnects Wi-Fi or radios go off.
   const connInfo: ConnectionInfo = {
-    ssid: telemetry.ssid || "lab5g",
-    signalPercent: telemetry.signalPct || 95,
-    wifiTechnology: normalizeWifiTechnology(telemetry.phyMode),
-    adapter: typeof telemetry.adapter === "string" && telemetry.adapter.trim()
-      ? telemetry.adapter.trim()
-      : "Intel(R) Wi-Fi 6 AX201 160MHz",
-    rxMbps: parseInt(telemetry.rxBitrate) || telemetry.linkSpeed || 650,
-    txMbps: parseInt(telemetry.txBitrate) || 433,
+    ssid: telemetry.connected ? telemetry.ssid || "—" : "Not connected",
+    signalPercent: telemetry.connected ? telemetry.signalPct || 0 : 0,
+    wifiTechnology: telemetry.connected
+      ? normalizeWifiTechnology(telemetry.phyMode)
+      : unavailableTechnology(telemetry.radioState),
+    adapter: telemetry.radioState === "adapter_disabled" || telemetry.radioState === "no_adapter"
+      ? "No adapter detected"
+      : telemetry.radioState === "radio_off"
+      ? "Wi-Fi radio off"
+        : typeof telemetry.adapter === "string" && telemetry.adapter.trim()
+          ? telemetry.adapter.trim()
+          : "No adapter detected",
+    rxMbps: telemetry.connected ? parseMbps(telemetry.rxBitrate) : 0,
+    txMbps: telemetry.connected ? parseMbps(telemetry.txBitrate) : 0,
   };
 
   // Fill the actual Electron width and compact vertical rhythm for short windows.
@@ -414,12 +419,16 @@ export default function Home() {
   const sectionGap = layoutGap;
   const cardPadding = compact ? 9 : Math.max(10, 16 * density);
   const rowPadding = compact ? 3 : Math.max(4, 10 * density);
-  const markerPercentage = Math.min(96, Math.max(4, percentage));
+  const clampedPercentage = Math.min(100, Math.max(0, percentage));
+  const qualityTrackStyle = {
+    "--percentage": clampedPercentage,
+    "--track-radius": "12px",
+  } as React.CSSProperties;
 
   return (
     <div aria-busy={engineActionPending} className="relative h-dvh w-full overflow-hidden bg-zinc-950 flex items-start justify-center select-none text-white font-sans">
       <AnimatePresence>
-        {(telemetry.backendError || actionError) && (
+        {(actionError || (telemetry.backendInitialized && telemetry.backendError)) && (
           <motion.div
             role="status"
             aria-live="polite"
@@ -534,7 +543,7 @@ export default function Home() {
             </div>
 
             {/* Bar track container */}
-            <div className="relative h-[22px] w-full rounded-full overflow-hidden bg-zinc-800">
+            <div className="relative h-[22px] w-full rounded-[12px] overflow-hidden bg-zinc-800" style={qualityTrackStyle}>
               {/* Red Zone */}
               <div
                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#dc2626] to-[#ef4444]"
@@ -558,12 +567,17 @@ export default function Home() {
               />
             </div>
 
-            {/* Liquid Marker container */}
-            <div className="absolute top-[20px] left-0 right-0 h-10 pointer-events-none">
+              {/* Current-speed fill stays inside the rounded travel track. */}
+              <div
+                className="absolute inset-y-[3px] left-[var(--track-radius)] rounded-full bg-white/20"
+                style={{ width: "calc((100% - (2 * var(--track-radius))) * (var(--percentage) / 100))" }}
+              />
+
+              {/* Liquid Marker container */}
+            <div className="absolute top-[20px] left-0 right-0 h-10 pointer-events-none" style={qualityTrackStyle}>
               <motion.div
-                className="absolute top-[-6px] bottom-[-6px] w-[2px] z-20 flex flex-col items-center -translate-x-1/2"
-                animate={{ left: `${markerPercentage}%` }}
-                transition={{ type: "spring", stiffness: 45, damping: 16, mass: 1.2 }}
+                className="absolute top-[-6px] bottom-[-6px] w-[2px] z-20 flex flex-col items-center transition-[left] duration-300 ease-out"
+                style={{ left: "calc(var(--track-radius) + (100% - (2 * var(--track-radius))) * (var(--percentage) / 100))" }}
               >
                  <div className="w-[2px] h-[34px] bg-white relative shadow-sm">
                     {/* Glowing Dot on top */}
@@ -572,6 +586,10 @@ export default function Home() {
                  {/* Floating Label Below */}
                  <motion.div
                    className="absolute top-[36px] text-[14px] font-semibold tracking-[-0.01em] text-white whitespace-nowrap"
+                   style={{
+                     left: "0",
+                     transform: "translateX(calc(-1% * var(--percentage)))",
+                   }}
                    animate={isSettling ? { y: [0, -2, 2, -1, 1, 0] } : { y: 0 }}
                    transition={{ duration: 0.4, ease: "easeOut" }}
                  >
@@ -593,7 +611,12 @@ export default function Home() {
               {/* Row 1 */}
               <div style={{ paddingTop: rowPadding, paddingBottom: rowPadding }} className="flex justify-between items-center border-b border-[#3f3f46]/80">
                  <span className="text-[11px] leading-none text-[#b4b4bb]">Connected to</span>
-                 <div className="px-2.5 py-0.5 rounded-full bg-[#10b981]/10 text-[#34d399] text-[11px] leading-none font-semibold border border-[#10b981]/20">
+                 <div className={cn(
+                   "px-2.5 py-0.5 rounded-full text-[11px] leading-none font-semibold border",
+                   telemetry.connected
+                     ? "bg-[#10b981]/10 text-[#34d399] border-[#10b981]/20"
+                     : "bg-zinc-800/70 text-[#a1a1aa] border-[#3f3f46]"
+                 )}>
                     {connInfo.ssid}
                  </div>
               </div>
@@ -632,24 +655,59 @@ export default function Home() {
            </div>
 
            <div className="flex flex-col">
+              {/* Row 1 — Last Recovery */}
               <div style={{ paddingTop: rowPadding, paddingBottom: rowPadding }} className="flex justify-between items-center border-b border-[#3f3f46]/80">
                  <span className="text-[11px] text-[#a1a1aa]">Last Recovery</span>
-                 <span className="text-[12px] font-medium text-white">{formatRecovery(telemetry.lastRecovery)}</span>
+                 <span className="text-[12px] font-medium text-white">
+                   {isRecovering
+                     ? "In Progress..."
+                     : hasRecoveryHistory
+                       ? formatRecovery(telemetry.lastRecovery)
+                       : "None (Session Stable)"}
+                 </span>
               </div>
 
+              {/* Row 2 — Recovery Details */}
               <div style={{ paddingTop: rowPadding, paddingBottom: rowPadding }} className="flex justify-between items-center border-b border-[#3f3f46]/80">
-                 <span className="text-[11px] text-[#a1a1aa]">Recovery Attempts</span>
-                 <span className="text-[12px] font-medium text-white">{telemetry.reconnectAttempts} / {telemetry.maxAttempts}</span>
+                 <span className="text-[11px] text-[#a1a1aa]">Recovery Details</span>
+                 <span className="text-[12px] font-medium text-white">
+                   {isRecovering
+                     ? `Attempt ${telemetry.recoveryAttemptCount}...`
+                     : hasRecoveryHistory
+                       ? `${telemetry.recoveryAttemptCount} attempts (Started at ${formatRecovery(telemetry.recoveryStartTime)})`
+                       : "No events recorded."}
+                 </span>
               </div>
 
+              {/* Row 3 — Connection Status */}
               <div style={{ paddingTop: rowPadding }} className="flex justify-between items-center">
-                 <span className="text-[11px] text-[#a1a1aa]">Next Check</span>
-                 <div className="flex items-center gap-1.5">
-                    <Timer className="w-4 h-4" style={{ color: isProtected ? "#10B981" : "#52525b" }} />
-                    <span className="text-[12px] font-medium" style={{ color: isProtected ? "#ffffff" : "#52525b" }}>
-                      {isProtected ? `${countdown} sec` : "—"}
-                    </span>
-                 </div>
+                 <span className="text-[11px] text-[#a1a1aa]">Connection Status</span>
+                 {isRecovering ? (
+                   <div className="flex items-center gap-1.5 text-[#fbbf24]">
+                     <motion.span
+                       className="w-2 h-2 rounded-full bg-[#fbbf24]"
+                       animate={{ opacity: [1, 0.35, 1] }}
+                       transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                     />
+                     <span className="text-[12px] font-medium">
+                       {telemetry.recoveryStatus === "Connecting" ? "Connecting..." : "Recovering..."}
+                     </span>
+                   </div>
+                 ) : isProtected ? (
+                   <div className="flex items-center gap-1.5 text-[#34d399]">
+                     <motion.span
+                       className="w-2 h-2 rounded-full bg-[#10B981]"
+                       animate={{ opacity: [1, 0.4, 1], scale: [1, 1.2, 1] }}
+                       transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                     />
+                     <span className="text-[12px] font-medium">Active Monitoring</span>
+                   </div>
+                 ) : (
+                   <div className="flex items-center gap-1.5 text-[#71717a]">
+                     <span className="w-2 h-2 rounded-full bg-[#52525b]" />
+                     <span className="text-[12px] font-medium">Monitoring Paused</span>
+                   </div>
+                 )}
               </div>
            </div>
         </div>
@@ -684,8 +742,8 @@ export default function Home() {
         initialSettings={{
           targetSsid: telemetry.targetSsid,
           checkInterval: telemetry.checkInterval,
-          reconnectDelay: telemetry.reconnectDelay,
-          maxAttempts: telemetry.maxAttempts,
+          vhtGracePeriod: telemetry.vhtGracePeriod,
+          recoveryCooldown: telemetry.recoveryCooldown,
           autoSwitchPrimary: telemetry.autoSwitchPrimary,
           enableNotifications: telemetry.enableNotifications,
           enableSoundAlerts: telemetry.enableSoundAlerts,

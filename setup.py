@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name="wifi-ac-guardian-win",
-    version="1.0.0",
+    version="1.5.9",
     description="WiFi AC Guardian for Windows 11 - Enforces Wi-Fi 5+ connection quality.",
-    author="Antigravity",
+    author="Zohaib Javed (Zeejay)",
     packages=find_packages(),
     package_data={"wifi_ac_guardian_win": ["assets/*.ico", "assets/*.png", "assets/fluent/*.png", "assets/router_status/*.png", "assets/tray_menu/*.bmp"]},
     install_requires=[

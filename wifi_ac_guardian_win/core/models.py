@@ -9,6 +9,8 @@ from typing import Optional
 from datetime import datetime
 import os
 
+from wifi_ac_guardian_win.logger import DEFAULT_LOG_FILE_PATH
+
 
 class PhyMode(Enum):
     """Enumeration of wireless physical layer (PHY) modes on Windows."""
@@ -164,7 +166,9 @@ class GuardianConfig:
     reconnect_delay: float = 3.5          # Default radio OFF hold for bounded native auto-association cycles
     max_attempts: int = 0                 # 0 = unlimited recovery attempts
     min_bitrate_threshold: float = 300.0  # Minimum required link speed in Mbps
-    log_file_path: str = os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")
+    vht_grace_period: float = 15.0        # Seconds to observe a fresh 802.11n association before recovering
+    recovery_cooldown: float = 30.0       # Rest period between recovery cycles after a failed attempt
+    log_file_path: str = DEFAULT_LOG_FILE_PATH
     enable_notifications: bool = False    # False by default
     enable_tray: bool = True
     start_minimized: bool = False         # Start the UI hidden in the system tray

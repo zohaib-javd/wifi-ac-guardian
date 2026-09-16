@@ -53,23 +53,30 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
             ssid for ssid in saved_profiles
             if ssid and ssid.strip() and ssid.strip().casefold() in nearby_keys
         ]
+        connected = bool(link and link.connected)
+        available_adapter = bool(link and link.has_available_adapter)
+        radio_state = link.radio_state.value if link else "unknown"
         data = {
             "connected": link.connected if link else False,
-            "ssid": (link.ssid if link and link.ssid else _guardian_instance.config.target_ssid) or "lab5g",
-            "linkSpeed": link.max_bitrate_mbps if link and link.connected else 866.5,
-            "signalPct": link.signal_pct if link and link.signal_pct is not None else 95,
-            "txBitrate": link.tx_bitrate if link else "866.5 Mbps",
-            "rxBitrate": link.rx_bitrate if link else "866.5 Mbps",
-            "phyMode": (link.phy_summary if link else "Wi-Fi 5 (802.11ac)"),
-            "adapter": (link.adapter if link and link.adapter else (link.interface if link else "Wi-Fi")),
+            "ssid": link.ssid if connected and link and link.ssid else "",
+            "linkSpeed": link.max_bitrate_mbps if connected and link else 0,
+            "signalPct": link.signal_pct if connected and link and link.signal_pct is not None else 0,
+            "txBitrate": link.tx_bitrate if connected and link and link.tx_bitrate else "0 Mbps",
+            "rxBitrate": link.rx_bitrate if connected and link and link.rx_bitrate else "0 Mbps",
+            "phyMode": link.phy_summary if connected and link else "Disconnected",
+            "adapter": (link.adapter or link.interface) if available_adapter and link else "",
+            "radioState": radio_state,
             "status": _guardian_instance.state.status.value if hasattr(_guardian_instance.state.status, 'value') else str(_guardian_instance.state.status),
-            "reconnectAttempts": _guardian_instance.state.attempts_count,
-            "maxAttempts": _guardian_instance.config.max_attempts,
             "protectionRunning": _guardian_instance.state.running,
             "lastRecovery": _format_datetime(_guardian_instance.state.last_reconnect),
             "lastCheck": _format_datetime(_guardian_instance.state.last_check),
+            "recoveryActive": _guardian_instance.state.recovery_active,
+            "recoveryStatus": _guardian_instance.state.recovery_status,
+            "recoveryStartTime": _format_datetime(_guardian_instance.recovery_start_time),
+            "recoveryAttemptCount": _guardian_instance.recovery_attempt_count,
             "checkInterval": _guardian_instance.config.check_interval,
-            "reconnectDelay": _guardian_instance.config.reconnect_delay,
+            "vhtGracePeriod": _guardian_instance.config.vht_grace_period,
+            "recoveryCooldown": _guardian_instance.config.recovery_cooldown,
             "minBitrateThreshold": _guardian_instance.config.min_bitrate_threshold,
             "autoSwitchPrimary": _guardian_instance.config.auto_switch_primary,
             "enableNotifications": _guardian_instance.config.enable_notifications,
@@ -91,13 +98,7 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
             action = payload.get("action")
 
             if action == "reconnect_now" and _guardian_instance:
-                link = _guardian_instance.detector.get_link_info()
-                target = _guardian_instance.config.target_ssid or "lab5g"
-                threading.Thread(
-                    target=_guardian_instance.reconnector.trigger_reconnect,
-                    args=(link.interface, target),
-                    daemon=True
-                ).start()
+                _guardian_instance.force_reconnect()
                 resp = {"status": "ok", "message": "Reconnect triggered"}
 
 
@@ -105,7 +106,7 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
                 settings = payload.get("settings") or {}
                 mapping = {
                     "targetSsid": "target_ssid", "checkInterval": "check_interval",
-                    "reconnectDelay": "reconnect_delay", "maxAttempts": "max_attempts",
+                    "vhtGracePeriod": "vht_grace_period", "recoveryCooldown": "recovery_cooldown",
                     "minBitrateThreshold": "min_bitrate_threshold",
                     "autoSwitchPrimary": "auto_switch_primary", "enableNotifications": "enable_notifications",
                     "enableSoundAlerts": "sound_alerts", "autoStart": "auto_start", "startMinimized": "start_minimized"
@@ -113,14 +114,14 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
                 for incoming, field in mapping.items():
                     if incoming not in settings or not hasattr(_guardian_instance.config, field): continue
                     value = settings[incoming]
-                    if field in {"check_interval", "reconnect_delay", "min_bitrate_threshold"}: value = max(1.0, min(10000.0, float(value)))
-                    elif field == "max_attempts": value = max(1, min(999, int(value)))
+                    if field in {"check_interval", "vht_grace_period", "recovery_cooldown", "min_bitrate_threshold"}: value = max(1.0, min(10000.0, float(value)))
                     elif field == "target_ssid": value = str(value).strip()[:64] or _guardian_instance.config.target_ssid
                     elif field in {"auto_switch_primary", "enable_notifications", "sound_alerts", "auto_start", "start_minimized"}: value = bool(value)
                     setattr(_guardian_instance.config, field, value)
                 _guardian_instance.notifier.enabled = _guardian_instance.config.enable_notifications
                 _guardian_instance.notifier.sound_enabled = _guardian_instance.config.sound_alerts
                 _guardian_instance.reconnector.config = _guardian_instance.config
+                _guardian_instance.reschedule_checks()
                 config_path = save_config(_guardian_instance.config, sync_startup_shortcut=False)
                 resp = {
                     "status": "ok",
@@ -129,8 +130,8 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
                     "settings": {
                         "targetSsid": _guardian_instance.config.target_ssid,
                         "checkInterval": _guardian_instance.config.check_interval,
-                        "reconnectDelay": _guardian_instance.config.reconnect_delay,
-                        "maxAttempts": _guardian_instance.config.max_attempts,
+                        "vhtGracePeriod": _guardian_instance.config.vht_grace_period,
+                        "recoveryCooldown": _guardian_instance.config.recovery_cooldown,
                         "minBitrateThreshold": _guardian_instance.config.min_bitrate_threshold,
                         "autoSwitchPrimary": _guardian_instance.config.auto_switch_primary,
                         "enableNotifications": _guardian_instance.config.enable_notifications,

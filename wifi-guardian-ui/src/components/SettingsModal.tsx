@@ -7,8 +7,8 @@ import { FileText, Settings, Shield, Sliders, Wifi, X } from 'lucide-react';
 export interface GuardianSettings {
   targetSsid: string;
   checkInterval: number;
-  reconnectDelay: number;
-  maxAttempts: number;
+  vhtGracePeriod: number;
+  recoveryCooldown: number;
   autoSwitchPrimary: boolean;
   enableNotifications: boolean;
   enableSoundAlerts: boolean;
@@ -26,9 +26,9 @@ interface SettingsModalProps {
   availableSsids?: string[];
 }
 
-const CHECK_INTERVALS = [30, 60, 300, 600] as const;
-const RECOVERY_DELAYS = [15, 5, 30, 45, 60] as const;
-const MAX_RECOVERY_ATTEMPTS = [50, 25, 15, 10, 5] as const;
+const CHECK_INTERVALS = [15, 30, 60] as const;
+const VHT_GRACE_PERIODS = [10, 15, 25] as const;
+const RECOVERY_COOLDOWNS = [15, 30, 60] as const;
 const BITRATE_THRESHOLDS = [100, 150, 200, 250, 300, 350, 400, 500] as const;
 
 function supportedValue(value: number | undefined, values: readonly number[], fallback: number) {
@@ -64,10 +64,10 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
   const [saveError, setSaveError] = useState('');
   const wasOpenRef = useRef(false);
 
-  const [targetSsid, setTargetSsid] = useState('lab5g');
+  const [targetSsid, setTargetSsid] = useState('');
   const [checkInterval, setCheckInterval] = useState(30);
-  const [reconnectDelay, setReconnectDelay] = useState(15);
-  const [maxAttempts, setMaxAttempts] = useState(50);
+  const [vhtGracePeriod, setVhtGracePeriod] = useState(15);
+  const [recoveryCooldown, setRecoveryCooldown] = useState(30);
   const [minBitrateThreshold, setMinBitrateThreshold] = useState(300);
   const [autoSwitchPrimary, setAutoSwitchPrimary] = useState(true);
   const [autoStart, setAutoStart] = useState(true);
@@ -77,10 +77,10 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
 
   useEffect(() => {
     if (isOpen && !wasOpenRef.current && initialSettings) {
-      setTargetSsid(initialSettings.targetSsid || 'lab5g');
+      setTargetSsid(initialSettings.targetSsid || '');
       setCheckInterval(supportedValue(initialSettings.checkInterval, CHECK_INTERVALS, 30));
-      setReconnectDelay(supportedValue(initialSettings.reconnectDelay, RECOVERY_DELAYS, 15));
-      setMaxAttempts(supportedValue(initialSettings.maxAttempts, MAX_RECOVERY_ATTEMPTS, 50));
+      setVhtGracePeriod(supportedValue(initialSettings.vhtGracePeriod, VHT_GRACE_PERIODS, 15));
+      setRecoveryCooldown(supportedValue(initialSettings.recoveryCooldown, RECOVERY_COOLDOWNS, 30));
       setMinBitrateThreshold(supportedValue(initialSettings.minBitrateThreshold, BITRATE_THRESHOLDS, 300));
       setAutoSwitchPrimary(initialSettings.autoSwitchPrimary ?? true);
       setAutoStart(initialSettings.autoStart ?? true);
@@ -102,8 +102,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
       await onSave?.({
         targetSsid,
         checkInterval,
-        reconnectDelay,
-        maxAttempts,
+        vhtGracePeriod,
+        recoveryCooldown,
         autoSwitchPrimary,
         enableNotifications,
         enableSoundAlerts,
@@ -176,7 +176,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
                 <select value={targetSsid} onChange={(event) => setTargetSsid(event.target.value)} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
                   {availableSsids.length > 0
                     ? availableSsids.map(ssid => <option key={ssid} value={ssid}>{ssid}</option>)
-                    : <option value={targetSsid}>No paired networks currently in range</option>}
+                    : <option value={targetSsid}>{targetSsid || 'No paired networks currently in range'}</option>}
                 </select>
               </SettingsSection>
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#1E2124] border border-[#2A2F33]">
@@ -191,30 +191,25 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
 
           {activeTab === 'protection' && (
             <div className="space-y-5 text-xs">
-              <SettingsSection title="Monitoring" helper="How often should Guardian check your connection?">
+              <SettingsSection title="Monitoring" helper="How frequently should Guardian verify link quality?">
                 <select value={checkInterval} onChange={(event) => setCheckInterval(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={30}>Every 30 seconds (Default)</option>
-                  <option value={60}>Every 1 minute</option>
-                  <option value={300}>Every 5 minutes</option>
-                  <option value={600}>Every 10 minutes</option>
+                  <option value={15}>Every 15 seconds</option>
+                  <option value={30}>Every 30 seconds (Recommended)</option>
+                  <option value={60}>Every 60 seconds</option>
                 </select>
               </SettingsSection>
-              <SettingsSection title="Recovery" helper="How quickly should Guardian retry after a connection problem?">
-                <select value={reconnectDelay} onChange={(event) => setReconnectDelay(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={15}>After 15 seconds (Default)</option>
-                  <option value={5}>After 5 seconds</option>
-                  <option value={30}>After 30 seconds</option>
-                  <option value={45}>After 45 seconds</option>
-                  <option value={60}>After 60 seconds</option>
+              <SettingsSection title="VHT Warm-Up Grace Period" helper="Delay allowed for router to negotiate 802.11ac after connecting:">
+                <select value={vhtGracePeriod} onChange={(event) => setVhtGracePeriod(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
+                  <option value={10}>10 seconds</option>
+                  <option value={15}>15 seconds (Recommended)</option>
+                  <option value={25}>25 seconds</option>
                 </select>
               </SettingsSection>
-              <SettingsSection title="Maximum recovery attempts">
-                <select value={maxAttempts} onChange={(event) => setMaxAttempts(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={50}>50 attempts (Max)</option>
-                  <option value={25}>25 attempts</option>
-                  <option value={15}>15 attempts</option>
-                  <option value={10}>10 attempts</option>
-                  <option value={5}>5 attempts</option>
+              <SettingsSection title="Recovery Cool-Down" helper="Rest period between recovery attempts if a cycle fails:">
+                <select value={recoveryCooldown} onChange={(event) => setRecoveryCooldown(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
+                  <option value={15}>15 seconds</option>
+                  <option value={30}>30 seconds (Recommended)</option>
+                  <option value={60}>60 seconds</option>
                 </select>
               </SettingsSection>
             </div>
@@ -222,7 +217,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
 
           {activeTab === 'advanced' && (
             <div className="space-y-4 text-xs">
-              <SettingsSection title="Min Bitrate Threshold (Mbps)" helper="Triggers Hardware reset if link speed falls below threshold.">
+              <SettingsSection title="Min Bitrate Threshold (Mbps)" helper="Triggers a hardware Wi-Fi and Bluetooth reset if link speed falls below threshold.">
                 <select value={minBitrateThreshold} onChange={(event) => setMinBitrateThreshold(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
                   <option value={100}>100</option>
                   <option value={150}>150</option>

@@ -4,7 +4,6 @@ System tray interface for Windows 11.
 
 import os
 import sys
-import subprocess
 import threading
 import ctypes
 from typing import Optional, Callable
@@ -164,13 +163,10 @@ class SystemTrayAppWin:
             except Exception as e:
                 logger.error(f"Error in on_open_ui_click callback: {e}")
         else:
-            try:
-                pythonw = os.path.join(sys.prefix, "pythonw.exe")
-                exe = pythonw if os.path.exists(pythonw) else sys.executable
-                flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-                subprocess.Popen([exe, "-m", "wifi_ac_guardian_win", "--gui"], creationflags=flags)
-            except Exception:
-                pass
+            # The Electron dashboard is the only dashboard now; this tray is
+            # only active in standalone backend usage (no --no-tray), where
+            # there is no window to reopen.
+            logger.info("No dashboard window is available in standalone tray mode.")
 
     def _handle_quit(self, icon=None, item_obj=None) -> None:
         self.stop()

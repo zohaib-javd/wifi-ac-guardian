@@ -57,13 +57,44 @@ def print_status_report(interface_override: Optional[str] = None) -> None:
     print("==================================================")
 
 
+def _run_daemon(parsed: argparse.Namespace) -> int:
+    """Start the single-instance-guarded background monitoring service.
+
+    This is the backend Electron always launches with explicit --daemon
+    --no-tray. It also backs the no-args, non-interactive fallback below,
+    since there is no bundled GUI to fall back to anymore (see feature 006).
+    """
+    from wifi_ac_guardian_win.single_instance import SingleInstanceChecker
+    checker = SingleInstanceChecker()
+    if not checker.try_claim_single_instance():
+        print("WiFi AC Guardian is already running in the background.")
+        # Distinct sentinel (not 0) so the Electron watchdog can tell this
+        # deliberate hand-off apart from a real crash and skip respawning.
+        return 78
+
+    config = load_config()
+    if parsed.interface:
+        config.interface = parsed.interface
+    if parsed.target_ssid:
+        config.target_ssid = parsed.target_ssid
+    if parsed.interval is not None:
+        config.check_interval = parsed.interval
+    if parsed.max_attempts is not None:
+        config.max_attempts = parsed.max_attempts
+    if parsed.no_tray:
+        config.enable_tray = False
+
+    guardian = WifiACGuardianWin(config=config)
+    guardian.start()
+    return 0
+
+
 def main(args: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="wifi-ac-guardian-win",
         description="Continuously ensures Wi-Fi 5 (802.11ac) or higher negotiation on Windows 11."
     )
 
-    parser.add_argument("-g", "--gui", action="store_true", help="Launch Tkinter Control Panel GUI.")
     parser.add_argument("-s", "--status", action="store_true", help="Display current status report.")
     parser.add_argument("-d", "--daemon", action="store_true", help="Run background monitoring daemon.")
     parser.add_argument("-r", "--reconnect", action="store_true", help="Force immediate reconnection attempt.")
@@ -78,32 +109,15 @@ def main(args: Optional[List[str]] = None) -> int:
 
     setup_logger()
 
-    if parsed.gui:
-        from wifi_ac_guardian_win.ui import launch_gui_win
-        config = load_config()
-        if parsed.interface:
-            config.interface = parsed.interface
-        if parsed.target_ssid:
-            config.target_ssid = parsed.target_ssid
-        launch_gui_win(config=config)
-        return 0
-
     if parsed.status:
         print_status_report(interface_override=parsed.interface)
         return 0
 
-    if not parsed.daemon and not parsed.reconnect and not parsed.gui and not parsed.status:
+    if not parsed.daemon and not parsed.reconnect and not parsed.status:
         if sys.stdout and sys.stdout.isatty():
             print_status_report(interface_override=parsed.interface)
-        else:
-            from wifi_ac_guardian_win.ui import launch_gui_win
-            config = load_config()
-            if parsed.interface:
-                config.interface = parsed.interface
-            if parsed.target_ssid:
-                config.target_ssid = parsed.target_ssid
-            launch_gui_win(config=config)
-        return 0
+            return 0
+        return _run_daemon(parsed)
 
     if parsed.reconnect:
         print("Initiating immediate Windows Wi-Fi reconnection...")
@@ -120,29 +134,7 @@ def main(args: Optional[List[str]] = None) -> int:
         return 0
 
     if parsed.daemon:
-        from wifi_ac_guardian_win.single_instance import SingleInstanceChecker
-        checker = SingleInstanceChecker()
-        if not checker.try_claim_single_instance():
-            print("WiFi AC Guardian is already running in the background.")
-            # Distinct sentinel (not 0) so the Electron watchdog can tell this
-            # deliberate hand-off apart from a real crash and skip respawning.
-            return 78
-
-        config = load_config()
-        if parsed.interface:
-            config.interface = parsed.interface
-        if parsed.target_ssid:
-            config.target_ssid = parsed.target_ssid
-        if parsed.interval is not None:
-            config.check_interval = parsed.interval
-        if parsed.max_attempts is not None:
-            config.max_attempts = parsed.max_attempts
-        if parsed.no_tray:
-            config.enable_tray = False
-
-        guardian = WifiACGuardianWin(config=config)
-        guardian.start()
-        return 0
+        return _run_daemon(parsed)
 
     return 0
 

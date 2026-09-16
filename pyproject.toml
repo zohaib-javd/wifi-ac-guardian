@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wifi-ac-guardian-win"
-version = "1.0.0"
+version = "1.5.9"
 description = "WiFi AC Guardian for Windows 11"
-authors = [{ name = "Antigravity" }]
+authors = [{ name = "Zohaib Javed (Zeejay)" }]
 requires-python = ">=3.8"
 dependencies = [
     "pystray>=0.19.0",
@@ -18,3 +18,8 @@ wifi-ac-guardian-win = "wifi_ac_guardian_win.cli:main"
 
 [project.gui-scripts]
 wifi-ac-guardian-win-gui = "wifi_ac_guardian_win.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["legacy-v0.1", "node_modules", ".git", "build_backend", "wifi-guardian-ui", ".cache"]
+python_files = ["test_*.py"]
