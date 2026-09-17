@@ -87,6 +87,10 @@ class WifiReconnectorWin:
             
             logger.info("Triggering active 5 GHz probe scan with VHT80 capabilities.")
             self._trigger_active_scan(target_interface)
+            settle = max(0.0, float(self.config.post_scan_settle))
+            if settle:
+                logger.info("[SCAN] Waiting %.1fs post-scan settle before evaluating results.", settle)
+                time.sleep(settle)
 
             started = time.monotonic()
             link_info = self._wait_for_native_auto_association(
@@ -97,15 +101,21 @@ class WifiReconnectorWin:
             elapsed = time.monotonic() - started
             if self._is_target_policy_good(link_info, target_ssid):
                 logger.info("[AUTO] associated to %s in %.1fs.", target_ssid or "target", elapsed)
-                logger.info("[QUALITY] PHY=%s result=SUCCESS", link_info.radio_type or link_info.phy_summary)
-                return link_info
+                verified = self._verify_stable_connection(link_info, target_ssid)
+                if self._is_target_policy_good(verified, target_ssid):
+                    logger.info("[QUALITY] PHY=%s result=SUCCESS", verified.radio_type or verified.phy_summary)
+                    return verified
+                link_info = verified
             if not link_info.connected or (target_ssid and (link_info.ssid or "").casefold() != target_ssid.casefold()):
                 logger.warning("[AUTO] no target association in %.1fs; using post-window profile fallback.", elapsed)
                 self._connect_interface(target_interface, target_ssid)
                 link_info = self._wait_for_native_auto_association(target_interface, target_ssid, timeout_seconds=10.0)
                 if self._is_target_policy_good(link_info, target_ssid):
-                    logger.info("[QUALITY] PHY=%s result=SUCCESS", link_info.radio_type or link_info.phy_summary)
-                    return link_info
+                    verified = self._verify_stable_connection(link_info, target_ssid)
+                    if self._is_target_policy_good(verified, target_ssid):
+                        logger.info("[QUALITY] PHY=%s result=SUCCESS", verified.radio_type or verified.phy_summary)
+                        return verified
+                    link_info = verified
             if link_info.connected and target_ssid and (link_info.ssid or "").casefold() == target_ssid.casefold():
                 logger.warning(
                     "[QUALITY] PHY=%s band=%s result=PHY_STUCK_HT -> micro-cycle %s/%s",
@@ -319,6 +329,27 @@ try {{
             return True
         logger.warning("[FALLBACK] Profile connection request returned: %s", self._command_output(result))
         return False
+
+    def _verify_stable_connection(self, link_info: LinkInfo, target_ssid: Optional[str]) -> LinkInfo:
+        """Hold briefly after an apparent success, then re-read the link before declaring recovery complete.
+
+        A first good reading right after association can be transient (the
+        driver may still step rate/PHY down). Re-checking after the
+        configured post-connect verification window confirms the approved
+        PHY actually held before the caller reports success.
+        """
+        verify_delay = max(0.0, float(self.config.post_connect_verify))
+        if verify_delay:
+            time.sleep(verify_delay)
+        confirmed = self.detector.get_link_info()
+        if not self._is_target_policy_good(confirmed, target_ssid):
+            logger.warning(
+                "[VERIFY] Association to '%s' did not hold through the %.1fs post-connect verification window; now PHY=%s.",
+                target_ssid or "target",
+                verify_delay,
+                confirmed.phy_summary,
+            )
+        return confirmed
 
     def _is_target_policy_good(self, link_info: LinkInfo, target_ssid: Optional[str]) -> bool:
         target = (target_ssid or "").casefold()

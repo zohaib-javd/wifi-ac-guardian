@@ -24,7 +24,7 @@ class TestWifiReconnector(unittest.TestCase):
 
     @patch("wifi_ac_guardian_win.core.reconnector_win.time.sleep")
     @patch("wifi_ac_guardian_win.core.reconnector_win.cycle_preferred_radio_state", return_value="per-radio")
-    def test_uses_three_cycle_cadence_with_3_5_second_hold_and_no_fallback_when_autoconfig_succeeds(self, cycle_radio, mock_sleep):
+    def test_uses_three_cycle_cadence_with_3_second_hold_and_no_fallback_when_autoconfig_succeeds(self, cycle_radio, mock_sleep):
         reconnector = WifiReconnectorWin(GuardianConfig(target_ssid="lab5g"))
         reconnector.detector.get_link_info = MagicMock(return_value=self._link())
         with patch.object(reconnector, "_disconnect_interface", return_value=True) as disconnect, patch.object(reconnector, "_flush_network_caches") as flush, patch.object(reconnector, "_wait_for_native_auto_association", return_value=self._link()) as observe, patch.object(reconnector, "_connect_interface") as fallback:
@@ -33,10 +33,11 @@ class TestWifiReconnector(unittest.TestCase):
         self.assertTrue(result.is_good())
         disconnect.assert_called_once_with("Wi-Fi")
         flush.assert_called_once_with()
-        cycle_radio.assert_called_once_with(hold_seconds=3.5)
+        cycle_radio.assert_called_once_with(hold_seconds=3.0)
         observe.assert_called_once_with("Wi-Fi", "lab5g", timeout_seconds=20.0)
         fallback.assert_not_called()
-        self.assertEqual(mock_sleep.call_args_list, [call(1.5)])
+        # 1.5s post-disconnect wait, 2.0s post-scan settle, 6.0s post-connect verification.
+        self.assertEqual(mock_sleep.call_args_list, [call(1.5), call(2.0), call(6.0)])
 
     @patch("wifi_ac_guardian_win.core.reconnector_win.time.sleep")
     @patch("wifi_ac_guardian_win.core.reconnector_win.cycle_preferred_radio_state", return_value="system-airplane")

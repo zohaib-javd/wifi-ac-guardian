@@ -7,8 +7,11 @@ import { FileText, Settings, Shield, Sliders, Wifi, X } from 'lucide-react';
 export interface GuardianSettings {
   targetSsid: string;
   checkInterval: number;
+  reconnectDelay: number;
   vhtGracePeriod: number;
   recoveryCooldown: number;
+  postConnectVerify: number;
+  postScanSettle: number;
   autoSwitchPrimary: boolean;
   enableNotifications: boolean;
   enableSoundAlerts: boolean;
@@ -26,13 +29,27 @@ interface SettingsModalProps {
   availableSsids?: string[];
 }
 
-const CHECK_INTERVALS = [15, 30, 60] as const;
-const VHT_GRACE_PERIODS = [10, 15, 25] as const;
-const RECOVERY_COOLDOWNS = [15, 30, 60] as const;
+// Hardware-minimum baseline timings: each array's lowest option is the floor
+// the underlying recovery sequence can reliably observe/act on, ascending
+// from there. Defaults select that baseline.
+const CHECK_INTERVALS = [3, 5, 8, 10, 15, 20, 25, 30] as const;
+const RECONNECT_DELAYS = [3, 5, 8, 10, 15, 20, 30] as const;
+const RECOVERY_COOLDOWNS = [8, 10, 15, 20, 30, 45, 60] as const;
+const VHT_GRACE_PERIODS = [5, 8, 10, 15, 20, 30] as const;
+const POST_CONNECT_VERIFY = [6, 8, 10, 15, 20, 30] as const;
+const POST_SCAN_SETTLE = [2, 3, 5, 8, 10] as const;
 const BITRATE_THRESHOLDS = [100, 150, 200, 250, 300, 350, 400, 500] as const;
 
 function supportedValue(value: number | undefined, values: readonly number[], fallback: number) {
   return typeof value === 'number' && values.includes(value) ? value : fallback;
+}
+
+function SecondsSelect({ value, onChange, options }: { value: number; onChange: (value: number) => void; options: readonly number[] }) {
+  return (
+    <select value={value} onChange={(event) => onChange(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
+      {options.map(seconds => <option key={seconds} value={seconds}>{seconds} seconds</option>)}
+    </select>
+  );
 }
 
 function SettingToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
@@ -65,9 +82,12 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
   const wasOpenRef = useRef(false);
 
   const [targetSsid, setTargetSsid] = useState('');
-  const [checkInterval, setCheckInterval] = useState(30);
-  const [vhtGracePeriod, setVhtGracePeriod] = useState(15);
-  const [recoveryCooldown, setRecoveryCooldown] = useState(30);
+  const [checkInterval, setCheckInterval] = useState(3);
+  const [reconnectDelay, setReconnectDelay] = useState(3);
+  const [vhtGracePeriod, setVhtGracePeriod] = useState(5);
+  const [recoveryCooldown, setRecoveryCooldown] = useState(8);
+  const [postConnectVerify, setPostConnectVerify] = useState(6);
+  const [postScanSettle, setPostScanSettle] = useState(2);
   const [minBitrateThreshold, setMinBitrateThreshold] = useState(300);
   const [autoSwitchPrimary, setAutoSwitchPrimary] = useState(true);
   const [autoStart, setAutoStart] = useState(true);
@@ -78,9 +98,12 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
   useEffect(() => {
     if (isOpen && !wasOpenRef.current && initialSettings) {
       setTargetSsid(initialSettings.targetSsid || '');
-      setCheckInterval(supportedValue(initialSettings.checkInterval, CHECK_INTERVALS, 30));
-      setVhtGracePeriod(supportedValue(initialSettings.vhtGracePeriod, VHT_GRACE_PERIODS, 15));
-      setRecoveryCooldown(supportedValue(initialSettings.recoveryCooldown, RECOVERY_COOLDOWNS, 30));
+      setCheckInterval(supportedValue(initialSettings.checkInterval, CHECK_INTERVALS, 3));
+      setReconnectDelay(supportedValue(initialSettings.reconnectDelay, RECONNECT_DELAYS, 3));
+      setVhtGracePeriod(supportedValue(initialSettings.vhtGracePeriod, VHT_GRACE_PERIODS, 5));
+      setRecoveryCooldown(supportedValue(initialSettings.recoveryCooldown, RECOVERY_COOLDOWNS, 8));
+      setPostConnectVerify(supportedValue(initialSettings.postConnectVerify, POST_CONNECT_VERIFY, 6));
+      setPostScanSettle(supportedValue(initialSettings.postScanSettle, POST_SCAN_SETTLE, 2));
       setMinBitrateThreshold(supportedValue(initialSettings.minBitrateThreshold, BITRATE_THRESHOLDS, 300));
       setAutoSwitchPrimary(initialSettings.autoSwitchPrimary ?? true);
       setAutoStart(initialSettings.autoStart ?? true);
@@ -102,8 +125,11 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
       await onSave?.({
         targetSsid,
         checkInterval,
+        reconnectDelay,
         vhtGracePeriod,
         recoveryCooldown,
+        postConnectVerify,
+        postScanSettle,
         autoSwitchPrimary,
         enableNotifications,
         enableSoundAlerts,
@@ -191,26 +217,23 @@ export default function SettingsModal({ isOpen, onClose, onOpenLogs, onSave, ini
 
           {activeTab === 'protection' && (
             <div className="space-y-5 text-xs">
-              <SettingsSection title="Monitoring" helper="How frequently should Guardian verify link quality?">
-                <select value={checkInterval} onChange={(event) => setCheckInterval(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={15}>Every 15 seconds</option>
-                  <option value={30}>Every 30 seconds (Recommended)</option>
-                  <option value={60}>Every 60 seconds</option>
-                </select>
+              <SettingsSection title="Monitoring Check Interval" helper="How frequently should Guardian verify link quality?">
+                <SecondsSelect value={checkInterval} onChange={setCheckInterval} options={CHECK_INTERVALS} />
               </SettingsSection>
-              <SettingsSection title="VHT Warm-Up Grace Period" helper="Delay allowed for router to negotiate 802.11ac after connecting:">
-                <select value={vhtGracePeriod} onChange={(event) => setVhtGracePeriod(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={10}>10 seconds</option>
-                  <option value={15}>15 seconds (Recommended)</option>
-                  <option value={25}>25 seconds</option>
-                </select>
+              <SettingsSection title="Reconnect Delay" helper="Radio-off hold time during a recovery cycle before the radio comes back on:">
+                <SecondsSelect value={reconnectDelay} onChange={setReconnectDelay} options={RECONNECT_DELAYS} />
               </SettingsSection>
               <SettingsSection title="Recovery Cool-Down" helper="Rest period between recovery attempts if a cycle fails:">
-                <select value={recoveryCooldown} onChange={(event) => setRecoveryCooldown(Number(event.target.value))} className="w-full px-3 py-2.5 bg-[#1E2124] border border-[#2A2F33] rounded-lg text-[#F2F4F7] focus:border-[#22C55E] outline-none">
-                  <option value={15}>15 seconds</option>
-                  <option value={30}>30 seconds (Recommended)</option>
-                  <option value={60}>60 seconds</option>
-                </select>
+                <SecondsSelect value={recoveryCooldown} onChange={setRecoveryCooldown} options={RECOVERY_COOLDOWNS} />
+              </SettingsSection>
+              <SettingsSection title="VHT Warm-Up Grace Period" helper="Delay allowed for router to negotiate 802.11ac after connecting:">
+                <SecondsSelect value={vhtGracePeriod} onChange={setVhtGracePeriod} options={VHT_GRACE_PERIODS} />
+              </SettingsSection>
+              <SettingsSection title="Post-Connect Verification" helper="Hold time after an apparent success before confirming the recovery held:">
+                <SecondsSelect value={postConnectVerify} onChange={setPostConnectVerify} options={POST_CONNECT_VERIFY} />
+              </SettingsSection>
+              <SettingsSection title="Post-Scan Settle" helper="Pause after an active scan before evaluating the results:">
+                <SecondsSelect value={postScanSettle} onChange={setPostScanSettle} options={POST_SCAN_SETTLE} />
               </SettingsSection>
             </div>
           )}

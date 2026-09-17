@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wifi-ac-guardian-win"
-version = "1.5.9"
+version = "1.6.3"
 description = "WiFi AC Guardian for Windows 11"
 authors = [{ name = "Zohaib Javed (Zeejay)" }]
 requires-python = ">=3.8"

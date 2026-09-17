@@ -75,8 +75,11 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
             "recoveryStartTime": _format_datetime(_guardian_instance.recovery_start_time),
             "recoveryAttemptCount": _guardian_instance.recovery_attempt_count,
             "checkInterval": _guardian_instance.config.check_interval,
+            "reconnectDelay": _guardian_instance.config.reconnect_delay,
             "vhtGracePeriod": _guardian_instance.config.vht_grace_period,
             "recoveryCooldown": _guardian_instance.config.recovery_cooldown,
+            "postConnectVerify": _guardian_instance.config.post_connect_verify,
+            "postScanSettle": _guardian_instance.config.post_scan_settle,
             "minBitrateThreshold": _guardian_instance.config.min_bitrate_threshold,
             "autoSwitchPrimary": _guardian_instance.config.auto_switch_primary,
             "enableNotifications": _guardian_instance.config.enable_notifications,
@@ -106,15 +109,21 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
                 settings = payload.get("settings") or {}
                 mapping = {
                     "targetSsid": "target_ssid", "checkInterval": "check_interval",
+                    "reconnectDelay": "reconnect_delay",
                     "vhtGracePeriod": "vht_grace_period", "recoveryCooldown": "recovery_cooldown",
+                    "postConnectVerify": "post_connect_verify", "postScanSettle": "post_scan_settle",
                     "minBitrateThreshold": "min_bitrate_threshold",
                     "autoSwitchPrimary": "auto_switch_primary", "enableNotifications": "enable_notifications",
                     "enableSoundAlerts": "sound_alerts", "autoStart": "auto_start", "startMinimized": "start_minimized"
                 }
+                seconds_fields = {
+                    "check_interval", "reconnect_delay", "vht_grace_period", "recovery_cooldown",
+                    "post_connect_verify", "post_scan_settle", "min_bitrate_threshold",
+                }
                 for incoming, field in mapping.items():
                     if incoming not in settings or not hasattr(_guardian_instance.config, field): continue
                     value = settings[incoming]
-                    if field in {"check_interval", "vht_grace_period", "recovery_cooldown", "min_bitrate_threshold"}: value = max(1.0, min(10000.0, float(value)))
+                    if field in seconds_fields: value = max(1.0, min(10000.0, float(value)))
                     elif field == "target_ssid": value = str(value).strip()[:64] or _guardian_instance.config.target_ssid
                     elif field in {"auto_switch_primary", "enable_notifications", "sound_alerts", "auto_start", "start_minimized"}: value = bool(value)
                     setattr(_guardian_instance.config, field, value)
@@ -130,8 +139,11 @@ class GuardianIPCHandler(BaseHTTPRequestHandler):
                     "settings": {
                         "targetSsid": _guardian_instance.config.target_ssid,
                         "checkInterval": _guardian_instance.config.check_interval,
+                        "reconnectDelay": _guardian_instance.config.reconnect_delay,
                         "vhtGracePeriod": _guardian_instance.config.vht_grace_period,
                         "recoveryCooldown": _guardian_instance.config.recovery_cooldown,
+                        "postConnectVerify": _guardian_instance.config.post_connect_verify,
+                        "postScanSettle": _guardian_instance.config.post_scan_settle,
                         "minBitrateThreshold": _guardian_instance.config.min_bitrate_threshold,
                         "autoSwitchPrimary": _guardian_instance.config.auto_switch_primary,
                         "enableNotifications": _guardian_instance.config.enable_notifications,

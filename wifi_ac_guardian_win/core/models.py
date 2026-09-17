@@ -162,12 +162,14 @@ class GuardianConfig:
     target_ssid: str = ""                 # Empty = adopt the currently connected SSID for this session
     auto_switch_primary: bool = True      # Automatically switch back to primary when back online
     auto_start: bool = True               # Start WiFi AC Guardian when Windows starts
-    check_interval: float = 30.0          # Dynamic internal poll interval
-    reconnect_delay: float = 3.5          # Default radio OFF hold for bounded native auto-association cycles
+    check_interval: float = 3.0           # Dynamic internal poll interval
+    reconnect_delay: float = 3.0          # Default radio OFF hold for bounded native auto-association cycles
     max_attempts: int = 0                 # 0 = unlimited recovery attempts
     min_bitrate_threshold: float = 300.0  # Minimum required link speed in Mbps
-    vht_grace_period: float = 15.0        # Seconds to observe a fresh 802.11n association before recovering
-    recovery_cooldown: float = 30.0       # Rest period between recovery cycles after a failed attempt
+    vht_grace_period: float = 5.0         # Seconds to observe a fresh 802.11n association before recovering
+    recovery_cooldown: float = 8.0        # Rest period between recovery cycles after a failed attempt
+    post_connect_verify: float = 6.0      # Hold time after apparent success before confirming recovery
+    post_scan_settle: float = 2.0         # Pause after an active scan before evaluating results
     log_file_path: str = DEFAULT_LOG_FILE_PATH
     enable_notifications: bool = False    # False by default
     enable_tray: bool = True

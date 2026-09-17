@@ -20,11 +20,6 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 APP_ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "wifi_ac_guardian.ico")
 SETTINGS_SCHEMA_VERSION = 6
 
-# The pre-6.0 default dumped rolling logs directly into the user's profile
-# root. Any config still carrying that legacy value is migrated to the new
-# dedicated log directory the first time it loads under the current schema.
-_LEGACY_HOME_LOG_FILE_PATH = os.path.join(os.path.expanduser("~"), "wifi_ac_guardian_win.log")
-
 
 import sys
 import subprocess
@@ -112,8 +107,14 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
                 stored_reconnect_delay = 3.5
 
             stored_log_file_path = data.get("log_file_path", DEFAULT_LOG_FILE_PATH)
-            if stored_schema_version < SETTINGS_SCHEMA_VERSION and stored_log_file_path == _LEGACY_HOME_LOG_FILE_PATH:
-                logger.info("Migrating rolling logs out of the profile root into the dedicated log directory.")
+            if stored_log_file_path != DEFAULT_LOG_FILE_PATH and not os.path.exists(stored_log_file_path):
+                # Catches both the pre-6.0 profile-root default and any other stale
+                # path left behind by an older build - if the file isn't actually
+                # there any more, there's nothing to preserve by keeping it.
+                logger.info(
+                    "Stored log file path '%s' no longer exists; reverting to the dedicated log directory.",
+                    stored_log_file_path,
+                )
                 stored_log_file_path = DEFAULT_LOG_FILE_PATH
 
             return GuardianConfig(
@@ -121,12 +122,14 @@ def load_config(config_path: Optional[str] = None) -> GuardianConfig:
                 target_ssid=(data.get("target_ssid") or "").strip(),
                 auto_switch_primary=bool(data.get("auto_switch_primary", True)),
                 auto_start=bool(data.get("auto_start", True)),
-                check_interval=float(data.get("check_interval", 30.0)),
+                check_interval=float(data.get("check_interval", 3.0)),
                 reconnect_delay=stored_reconnect_delay,
                 max_attempts=max(0, int(data.get("max_attempts", 0))),
                 min_bitrate_threshold=float(data.get("min_bitrate_threshold", 300.0)),
-                vht_grace_period=float(data.get("vht_grace_period", 15.0)),
-                recovery_cooldown=float(data.get("recovery_cooldown", 30.0)),
+                vht_grace_period=float(data.get("vht_grace_period", 5.0)),
+                recovery_cooldown=float(data.get("recovery_cooldown", 8.0)),
+                post_connect_verify=float(data.get("post_connect_verify", 6.0)),
+                post_scan_settle=float(data.get("post_scan_settle", 2.0)),
                 log_file_path=stored_log_file_path,
                 enable_notifications=bool(data.get("enable_notifications", False)),
                 enable_tray=bool(data.get("enable_tray", True)),
@@ -162,6 +165,8 @@ def save_config(
         "min_bitrate_threshold": config.min_bitrate_threshold,
         "vht_grace_period": config.vht_grace_period,
         "recovery_cooldown": config.recovery_cooldown,
+        "post_connect_verify": config.post_connect_verify,
+        "post_scan_settle": config.post_scan_settle,
         "log_file_path": config.log_file_path,
         "enable_notifications": config.enable_notifications,
         "enable_tray": config.enable_tray,
