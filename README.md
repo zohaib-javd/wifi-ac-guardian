@@ -23,8 +23,8 @@ Pre-compiled binary releases are available on the [GitHub Releases](https://gith
 
 | Platform | Type | Asset File |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (x64)** | **Portable** | [`WiFi-AC-Guardian-Windows-v1.5.9-Portable.exe`](https://github.com/zohaib-javd/wifi-ac-guardian/releases/download/v1.5.9/WiFi-AC-Guardian-Windows-v1.5.9-Portable.exe) |
-| **Windows 10 / 11 (x64)** | **Installer** | [`WiFi-AC-Guardian-Windows-v1.5.9-Installer.exe`](https://github.com/zohaib-javd/wifi-ac-guardian/releases/download/v1.5.9/WiFi-AC-Guardian-Windows-v1.5.9-Installer.exe) |
+| **Windows 10 / 11 (x64)** | **Portable** | [`WiFi-AC-Guardian-Windows-v1.6.3-Portable.exe`](https://github.com/zohaib-javd/wifi-ac-guardian/releases/download/v1.6.3/WiFi-AC-Guardian-Windows-v1.6.3-Portable.exe) |
+| **Windows 10 / 11 (x64)** | **Installer** | [`WiFi-AC-Guardian-Windows-v1.6.3-Installer.exe`](https://github.com/zohaib-javd/wifi-ac-guardian/releases/download/v1.6.3/WiFi-AC-Guardian-Windows-v1.6.3-Installer.exe) |
 | **Ubuntu Linux (AMD64)** | **Package** | [`WiFi-AC-Guardian-Ubuntu-v0.1-Beta-9.zip`](https://github.com/zohaib-javd/wifi-ac-guardian/releases/download/v1.5.7/WiFi-AC-Guardian-Ubuntu-v0.1-Beta-9.zip) |
 
 ---
